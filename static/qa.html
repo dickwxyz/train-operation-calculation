@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>教材问答 · 调车作业计划智能体</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>教材问答</h1>
+            <p class="subtitle">《铁路行车组织（第2版）》第四、十一章 · 检索教材原文 + 大模型生成回答</p>
+            <p class="nav-links"><a href="/">← 返回调车作业计划</a></p>
+        </header>
+
+        <section class="card">
+            <h2>向教材提问</h2>
+            <textarea id="question" rows="3" placeholder="例如：什么是调车钩？下落、调整、合并各是什么意思？"></textarea>
+            <div class="qa-actions">
+                <button type="button" class="btn btn-primary qa-submit" id="askBtn">提问</button>
+            </div>
+            <div id="errorMsg" class="error-msg" style="display:none;"></div>
+            <div id="hint" class="qa-hint" style="display:none;"></div>
+        </section>
+
+        <section class="card" id="answerSection" style="display:none;">
+            <h2>回答</h2>
+            <div id="answerBox" class="qa-answer"></div>
+        </section>
+
+        <section class="card" id="sourcesSection" style="display:none;">
+            <h2>教材出处</h2>
+            <div id="sourcesList"></div>
+        </section>
+
+        <footer>
+            <p>调车作业计划智能体 · 教学演示工具</p>
+        </footer>
+    </div>
+
+    <script>
+        const questionInput = document.getElementById('question');
+        const askBtn = document.getElementById('askBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const hint = document.getElementById('hint');
+        const answerSection = document.getElementById('answerSection');
+        const answerBox = document.getElementById('answerBox');
+        const sourcesSection = document.getElementById('sourcesSection');
+        const sourcesList = document.getElementById('sourcesList');
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.style.display = 'block';
+            hint.style.display = 'none';
+        }
+
+        function hideError() {
+            errorMsg.style.display = 'none';
+        }
+
+        function renderSources(sources) {
+            sourcesList.innerHTML = '';
+            sources.forEach(s => {
+                const detail = document.createElement('details');
+                detail.className = 'qa-source';
+                detail.open = sources.length <= 2;
+                const summary = document.createElement('summary');
+                summary.textContent = `${s.source} / ${s.section}`;
+                const meta = document.createElement('div');
+                meta.className = 'qa-source-meta';
+                meta.textContent = '原文片段（截断）：';
+                const snippet = document.createElement('div');
+                snippet.className = 'qa-source-snippet';
+                snippet.textContent = s.snippet;
+                detail.appendChild(summary);
+                detail.appendChild(meta);
+                detail.appendChild(snippet);
+                sourcesList.appendChild(detail);
+            });
+            sourcesSection.style.display = 'block';
+        }
+
+        async function ask() {
+            hideError();
+            hint.style.display = 'none';
+
+            const question = questionInput.value.trim();
+            if (!question) {
+                showError('请输入问题');
+                return;
+            }
+
+            askBtn.disabled = true;
+            askBtn.textContent = '查询中...';
+            answerSection.style.display = 'none';
+            sourcesSection.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/qa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                if (data.answer) {
+                    answerBox.textContent = data.answer;
+                    answerSection.style.display = 'block';
+                } else {
+                    answerSection.style.display = 'none';
+                    hint.style.display = 'block';
+                    hint.textContent = data.no_llm
+                        ? '尚未配置大模型 API（.env 中 LLM_API_KEY 未填写），仅展示检索到的教材原文片段。配置后即可获得生成式回答。'
+                        : '大模型调用失败，仅展示检索到的教材原文片段。请检查 .env 中的 LLM_API_KEY 及网络。';
+                }
+
+                if (data.sources && data.sources.length) {
+                    renderSources(data.sources);
+                }
+            } catch (e) {
+                showError('网络错误：无法连接到服务器');
+            } finally {
+                askBtn.disabled = false;
+                askBtn.textContent = '提问';
+            }
+        }
+
+        askBtn.addEventListener('click', ask);
+        questionInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ask();
+        });
+    </script>
+</body>
+</html>

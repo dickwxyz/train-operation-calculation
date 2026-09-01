@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调车作业计划智能体</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>调车作业计划智能体</h1>
+            <p class="subtitle">分组选编法 — 调车作业计划自动生成</p>
+        </header>
+
+        <main>
+            <section class="card input-section">
+                <h2>输入算例</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="numTracks">分类股道数：</label>
+                        <input type="number" id="numTracks" min="2" max="6" value="3">
+                    </div>
+                    <div class="form-group">
+                        <label for="trainName">列车名称（可选）：</label>
+                        <input type="text" id="trainName" placeholder="如 FZ-01" maxlength="20">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>目标编组顺序（从左到右）：</label>
+                    <div id="targetOrderContainer" class="order-input">
+                        <input type="text" class="order-tag" value="甲" data-index="0">
+                        <input type="text" class="order-tag" value="乙" data-index="1">
+                        <input type="text" class="order-tag" value="丙" data-index="2">
+                        <button type="button" class="btn-sm" id="addOrderBtn">+添加去向</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>车辆列表（从机车端到尾部）：</label>
+                    <div class="table-actions">
+                        <button type="button" class="btn btn-secondary" id="loadExample">填入示例</button>
+                        <button type="button" class="btn btn-secondary" id="addRowBtn">+添加一行</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="carTable">
+                            <thead>
+                                <tr>
+                                    <th>序号</th>
+                                    <th>车号</th>
+                                    <th>去向</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="carTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary" id="solveBtn">计算调车计划</button>
+                <div id="errorMsg" class="error-msg" style="display:none;"></div>
+            </section>
+
+            <section class="card result-section" id="resultSection" style="display:none;">
+                <h2>调车作业计划表</h2>
+                <div id="resultStats" class="stats-bar"></div>
+
+                <div class="table-wrapper">
+                    <table id="resultTable">
+                        <thead>
+                            <tr>
+                                <th>顺序</th>
+                                <th>作业股道</th>
+                                <th>摘/挂</th>
+                                <th>辆数</th>
+                                <th>车号</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="formation-section">
+                    <h3>最终出发编成</h3>
+                    <div id="finalFormation" class="formation-display"></div>
+                </div>
+
+                <div id="trackStatesSection" style="display:none;">
+                    <h3>解体过程中各股道状态</h3>
+                    <div id="trackStatesDisplay"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>调车作业计划智能体 · 教学演示工具</p>
+            <p><a href="/qa" class="qa-link">教材问答 →</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const exampleCars = [
+            { id: 'H', dest: '乙', order: 1 },
+            { id: 'G', dest: '丙', order: 2 },
+            { id: 'F', dest: '甲', order: 3 },
+            { id: 'E', dest: '乙', order: 4 },
+            { id: 'D', dest: '丙', order: 5 },
+            { id: 'C', dest: '甲', order: 6 },
+            { id: 'B', dest: '乙', order: 7 },
+            { id: 'A', dest: '甲', order: 8 },
+        ];
+
+        let carCounter = 10;
+        let destCounter = 4;
+
+        function addCarRow(carId, dest) {
+            const tbody = document.getElementById('carTableBody');
+            const tr = document.createElement('tr');
+            const rowNum = tbody.children.length + 1;
+            tr.innerHTML = `
+                <td class="row-num">${rowNum}</td>
+                <td><input type="text" class="car-id" value="${carId || ''}" placeholder="如 A" maxlength="10"></td>
+                <td><input type="text" class="car-dest" value="${dest || ''}" placeholder="如 甲" maxlength="10"></td>
+                <td><button type="button" class="btn-sm btn-danger delete-row" onclick="deleteRow(this)">删除</button></td>
+            `;
+            tbody.appendChild(tr);
+            updateRowNumbers();
+        }
+
+        function addOrderTag(value) {
+            const container = document.getElementById('targetOrderContainer');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'order-tag';
+            input.value = value || '';
+            input.dataset.index = container.querySelectorAll('.order-tag').length;
+            container.insertBefore(input, container.lastElementChild);
+        }
+
+        function deleteRow(btn) {
+            const tr = btn.closest('tr');
+            if (document.querySelectorAll('#carTableBody tr').length <= 2) {
+                showError('车辆至少需要2辆');
+                return;
+            }
+            tr.remove();
+            updateRowNumbers();
+        }
+
+        function updateRowNumbers() {
+            const rows = document.querySelectorAll('#carTableBody tr');
+            rows.forEach((row, i) => {
+                row.querySelector('.row-num').textContent = i + 1;
+            });
+        }
+
+        function getCarsFromTable() {
+            const rows = document.querySelectorAll('#carTableBody tr');
+            const cars = [];
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const id = rows[i].querySelector('.car-id').value.trim();
+                const dest = rows[i].querySelector('.car-dest').value.trim();
+                if (id && dest) cars.push({ id, dest });
+            }
+            return cars;
+        }
+
+        function getTargetOrder() {
+            const tags = document.querySelectorAll('.order-tag');
+            const order = [];
+            tags.forEach(tag => {
+                const val = tag.value.trim();
+                if (val) order.push(val);
+            });
+            return order;
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorMsg').style.display = 'none';
+        }
+
+        // 填入示例
+        document.getElementById('loadExample').addEventListener('click', function() {
+            document.getElementById('numTracks').value = 3;
+            document.getElementById('trainName').value = 'FZ-01';
+
+            // 重置去向顺序
+            const container = document.getElementById('targetOrderContainer');
+            container.querySelectorAll('.order-tag').forEach(el => el.remove());
+            ['甲', '乙', '丙'].forEach(v => addOrderTag(v));
+
+            // 填入车辆（按机车端到尾部顺序：机车端最先处理=表格最下方）
+            const tbody = document.getElementById('carTableBody');
+            tbody.innerHTML = '';
+            exampleCars.forEach(c => addCarRow(c.id, c.dest));
+
+            hideError();
+        });
+
+        // 添加行
+        document.getElementById('addRowBtn').addEventListener('click', function() {
+            addCarRow('', '');
+        });
+
+        // 添加去向
+        document.getElementById('addOrderBtn').addEventListener('click', function() {
+            addOrderTag('');
+        });
+
+        // 提交求解
+        document.getElementById('solveBtn').addEventListener('click', async function() {
+            hideError();
+
+            const cars = getCarsFromTable();
+            const targetOrder = getTargetOrder();
+            const numTracks = parseInt(document.getElementById('numTracks').value);
+
+            // 前端校验
+            if (cars.length < 2) {
+                showError('车辆至少需要2辆');
+                return;
+            }
+            if (targetOrder.length === 0) {
+                showError('请设置目标编组顺序');
+                return;
+            }
+            // 检查去向是否都在目标顺序中
+            const dests = new Set(cars.map(c => c.dest));
+            for (const d of dests) {
+                if (!targetOrder.includes(d)) {
+                    showError(`去向"${d}"不在目标编组顺序中`);
+                    return;
+                }
+            }
+            // 去重校验
+            const seen = new Set();
+            for (const c of cars) {
+                if (seen.has(c.id)) {
+                    showError(`车号"${c.id}"重复`);
+                    return;
+                }
+                seen.add(c.id);
+            }
+
+            // 发送请求
+            try {
+                this.disabled = true;
+                this.textContent = '计算中...';
+
+                const resp = await fetch('/api/solve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cars, num_tracks: numTracks, target_order: targetOrder })
+                });
+
+                const data = await resp.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                displayResult(data);
+
+            } catch (e) {
+                showError('网络错误：无法连接到服务器');
+            } finally {
+                this.disabled = false;
+                this.textContent = '计算调车计划';
+            }
+        });
+
+        function displayResult(data) {
+            const section = document.getElementById('resultSection');
+            section.style.display = 'block';
+
+            // 统计信息
+            const s = data.stats;
+            document.getElementById('resultStats').innerHTML = `
+                <span class="stat">总调车程数：<strong>${s.total_steps}</strong> 钩</span>
+                <span class="stat">牵出：${s.pull_out_count} 钩</span>
+                <span class="stat">解体：${s.break_up_count} 钩</span>
+                <span class="stat">编组：${s.make_up_count} 钩</span>
+                <span class="stat">使用股道：${s.tracks_used} 条</span>
+            `;
+
+            // 计划表
+            const tbody = document.getElementById('resultTableBody');
+            tbody.innerHTML = '';
+            data.steps.forEach(step => {
+                const tr = document.createElement('tr');
+                tr.className = `phase-${step.phase}`;
+                tr.innerHTML = `
+                    <td>${step.seq}</td>
+                    <td>${step.track}</td>
+                    <td>${step.op}</td>
+                    <td>${step.qty}</td>
+                    <td>${step.cars}</td>
+                    <td>${step.desc}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 最终编成
+            const formation = document.getElementById('finalFormation');
+            formation.innerHTML = data.final_formation.map((car, i) => `
+                <span class="car-tag">${car}</span>
+                ${i < data.final_formation.length - 1 ? '<span class="car-arrow">→</span>' : ''}
+            `).join('');
+        }
+
+        // 初始化
+        document.getElementById('loadExample').click();
+    </script>
+</body>
+</html>
