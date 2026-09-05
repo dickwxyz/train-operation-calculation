@@ -1,73 +1,55 @@
 # 调车作业计划智能体
 
-铁路**调车作业计划**教学演示 Web 应用：输入到达列车、分类股道数和目标编组顺序，用**分组选编法**自动生成调车作业计划表；并内置基于《铁路行车组织（第2版）》教材的**检索问答**功能。
-
-面向学校局域网内多名学生并发使用，求解为毫秒级计算，`threaded` 开发服务器即可支撑。
+铁路**调车作业计划**教学演示 Web 应用。输入待编车列（去向+车数）与股道条件，按《铁路行车组织（第2版）》第四章第五节的**按站顺编组「调车表法」**求解：**下落 → 调整(邻组) → 暂合候选 → 股道分配 → 逐钩作业计划**，分阶段展示，并可用逐步股道图回放每一钩后各股道/牵出线的车辆状态。面向学校局域网内多名学生并发使用（求解为毫秒级，`threaded` 开发服务器即可）。
 
 ## 功能特性
 
-- **调车作业计划生成**：输入车辆（车号+去向）、股道数、目标编组顺序，输出分钩作业计划表（解体/编组/牵出各钩的作业股道、摘挂、辆数、车号、说明）与最终出发编成，各阶段着色区分。
-- **教材问答**：基于教材第四、十一章原文，BM25 检索相关片段 + DeepSeek 生成带出处的回答；未配置 API Key 时自动降级为仅展示教材原文片段。
-- **教材知识库**：`knowledge_base/` 提供结构化提炼（章节梳理、术语表、算法与代码对照、算例集），供教学与算法改进参考。
-- 零第三方依赖扩展（新增仅 `jieba`），纯 Python 实现检索。
+- **调车表法求解**：解析待编序列 → 下落列（与教材表 4.5/4.9/4.16 一致）→ 邻组化调整（自动复现表 4.6/4.17）→ 按「对口理论」枚举暂合候选并标注最优（时间模型：挂车钩×4 + 溜放钩 + 转线钩）。
+- **分步可视化**：暂合方案 chip 切换；每方案有钩计划表、股道分配、编成车列；**逐步股道图**基于每钩内嵌的 `state` 直接渲染（上一步 / 下一步 / 跳轮）。
+- **内置算例**：例题 4.3/4.4/4.6 与习题 2/3/7/8/9/12 一键填充。
+- **教材问答（`/qa`）**：概念问答页保留（**注意**：检索语料路径暂失效，见「已知限制」）。
+- 纯 Python 算法核心零第三方依赖（Flask 服务仅依赖 `flask`/可选 `jieba`）。
 
 ## 快速开始
 
-前置要求：Python 3.9+（推荐 3.12）。
+前置：Python 3.9+（推荐 3.12）。
 
 ```bash
-# 1. 创建虚拟环境并安装依赖
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
-
-# 2. 启动服务（监听 0.0.0.0:50000）
-venv/bin/python app.py
-
-# 3. 浏览器访问
-# http://<服务器IP>:50000
+venv/bin/python app.py          # 监听 0.0.0.0:50000
+# 浏览器访问 http://<服务器IP>:50000
 ```
 
-端口固定为 **50000**（避开 macOS AirPlay 接收器占用的 5000）。
+端口固定为 **50000**（避开 macOS AirPlay 接收器占用的 5000）。本机 `/usr/bin/python3` 无 flask，须用 `venv`。
 
 ## 使用说明
 
-### 调车作业计划
-
-1. 设置**目标编组顺序**（如 `甲 乙 丙`）与**分类股道数**（2~6）。
-2. 填写**车辆列表**：车号 + 去向，从机车端到尾部排列（表格**最下方一行是机车端**）。
-3. 点击「计算调车计划」，查看分钩计划表与最终编成。
-
-### 教材问答
-
-访问 `/qa`，输入问题（如「什么是调车钩？」），获得基于教材原文的生成式回答及出处片段。
-
-## 配置（.env）
-
-复制 `.env.example` 为 `.env` 并填写，即可启用生成式问答：
-
-```bash
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_API_KEY=sk-你的key
-LLM_MODEL=deepseek-v4-flash
-```
-
-- 接口为 **OpenAI 兼容**，修改 `LLM_BASE_URL` / `LLM_MODEL` 可切换其他服务（Ollama、智谱、通义等）。
-- **未填写 `LLM_API_KEY`** 时，问答功能降级为「仅展示检索到的教材原文片段」，其余功能不受影响。
-- `.env` 含密钥，已加入 `.gitignore`，不会上传。
+1. 顶部按钮可一键载入例题/习题；也可手填：待编车列、停留股道、可用作业股道（或条数预算）、出发股道、（字母站名时）站序。
+   - 待编写法示例：`4₂ 5₂ 6₁…`（下标=辆数）、`4_2`、纯数字串 `736…`（每字符 1 辆）、字母 + 站序（如 `b₂a₁…` + 站序 `fedcba`）。
+2. 结果分五块：算例概览 → **下落**原始调车表 → **调整**（哪些车组移列、成什么邻组、调整后表）→ 各**暂合候选**（★最优）→ 选中的方案里：统计 / 股道分配 / 钩计划表 / 编成 / 逐步股道图。
+3. 逐步股道图：`◀ 上一步 / 下一步 ▶ / 跳到下一轮 / 到结尾`；左=远端(内)、右=机车端（🚂），同车组间自动留隙。
 
 ## API
 
-### `POST /api/solve` — 生成调车作业计划
+### `POST /api/solve` — 调车表法求解
 
 ```json
 {
-  "cars": [{"id": "H", "dest": "乙"}, {"id": "G", "dest": "丙"}],
-  "num_tracks": 3,
-  "target_order": ["甲", "乙", "丙"]
+  "seq": "4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₂",
+  "station_order": null,
+  "home_track": "7",
+  "allowed_tracks": ["7", "8", "9", "10"],
+  "depart_track": "DF3",
+  "weights": {"pull": 4, "throw": 1, "transfer": 1}
 }
 ```
 
-返回 `{success, steps[], final_formation[], stats{total_steps, pull_out_count, break_up_count, make_up_count, tracks_used}}`。
+- `allowed_tracks`（含停留道）与 `track_budget`（条数，含停留道）二选一；都不给则不限。
+- 返回 `{success, meta, stages{xialuo, tiaozheng, track_budget}, schemes[], best_scheme_id}`；
+  每个 `schemes[i]` 含 `label/supercols/track_alloc/stats/hooks/final_formation/best`，
+  每条 `hooks[j]` 含 `code/kind/qty/cars/phase_round/note/state`，`state={tracks, lead}` 即该钩后全场（前端零再推导）。
+- 前端校验与后端镜像（`static/index.html` 与 `app.py` 注释互指），改输入规则需两处同步。
 
 ### `POST /api/qa` — 教材问答
 
@@ -75,27 +57,56 @@ LLM_MODEL=deepseek-v4-flash
 { "question": "什么是调车钩？" }
 ```
 
-返回 `{success, answer, no_llm, sources[{source, section, snippet}]}`；`no_llm:true` 或 `answer:null` 表示大模型未配置/调用失败。
+返回 `{success, answer, no_llm, sources[{source, section, snippet}]}`。
+
+## 算法流程（简）
+
+1. **下落**：把反顺序车组落到若干"列"，每列去向非降（表 4.5/4.9/4.16）。
+2. **调整**：把边界可调车组移入相邻列形成**邻组**（v 与 v+1 相邻、同线、溜放省钩），复现表 4.6/4.17。
+3. **暂合**：按对口理论（列一不并、相邻列一般不并）枚举可行列分组；股道不足时也允许更密合并。
+4. **股道分配**：含首车组列常**坐底**于停留道。
+5. **钩计划**：初牵留坐底 → 溜放（同线连续车段合一钩，保留机前集结）→ 拆分暂合列 → 按去向降序连挂 → 转线。
 
 ## 项目结构
 
 ```
-app.py                  # Flask 入口（/、/qa、/api/solve、/api/qa）
-scripts/shunting_plan.py # 分组选编法求解器（纯算法）
-rag/                    # 教材问答后端：corpus(分块)/tokenizer(分词)/retriever(BM25)/llm(DeepSeek)/config(.env)
-knowledge_base/         # 教材知识库（章节梳理、术语表、算法与代码对照、算例集）
-static/                 # 前端：index.html(求解页)、qa.html(问答页)、style.css
-assets/                 # 教材原始 PDF 与章节摘录（检索语料，未纳入版本控制）
+app.py                     # Flask 入口（/、/qa、/api/solve、/api/qa）
+scripts/                   # 调车表法算法（纯 Python，无 Flask、无第三方）
+  parser.py                 #   宽容解析待编序列（下标/数字/字母+站序）
+  model.py                  #   数据类；堆序约定见下
+  xialuo.py                 #   下落列
+  tiaozheng.py              #   调整（邻组化）
+  engine.py                 #   逐钩物理模拟（含每钩 state 快照）
+  planner.py                #   总装：枚举暂合 → 股道分配 → 引擎调度 → 择优
+  shunting_plan.py          #   ShuntingPlan 门面（app.py 引用入口）
+  fixtures.py               #   验收固件（无 pytest）
+rag/                       # 教材问答后端（语料路径暂失效，见下）
+static/                    # 前端：index.html(求解页)、qa.html(问答页)、style.css（原生 JS，无模板目录）
+knowledge_base/调车工作/     # 教材知识库（第四章提炼/术语表/算例集/原文 md，含 images/）
+assets/                    # 教材原始 PDF（版权，未纳入版本控制）
+过程/                      # 开发对话实录与第十一章原文 md（gitignored）
 ```
 
-## 教材问答原理
+### 堆序约定（全项目唯一，务必遵守）
 
-1. `rag/corpus.py` 把教材第四、十一章原文按标题分块（带章节出处）。
-2. 收到问题后，`rag/retriever.py` 用 **BM25** 检索最相关的 5 段原文。
-3. `rag/qa.py` 把问题 + 原文片段拼入提示词，交给 DeepSeek 生成回答（要求标注出处、不编造教材内容）。
+> **任意股道 / 牵出线状态列表一律「机车远端(内/左) → 机车端(右)」，机车端恒在右。**
+> 待编车列书写序 = 该序（索引 0 = 最远/内）。最终编成 = 去向 1..n 顺序，n 贴机车端。
 
-## 说明
+（注意这与早期"分组选编法"的旧约定相反。）
 
-- **`assets/` 未纳入版本控制**（教材有版权、体积大）。问答的检索语料来自该目录，从 Git 克隆后需自行补充教材章节 Markdown 到 `assets/`（目录结构见 `rag/corpus.py` 的 `SOURCES`），否则问答仅返回空结果。
-- 求解器 `scripts/shunting_plan.py` 实现的是教材「分组选编法」的简化子集；与完整「调车表法」（下落/调整/合并）的差异与改进方向见 `knowledge_base/算法方法与代码对照.md`。
-- 本项目为教学演示，使用 Flask 开发服务器即可；生产部署请换用 WSGI 服务器并关闭 `debug`。
+## 验收
+
+```bash
+PYTHONPATH=. venv/bin/python -c "from scripts import fixtures; fixtures.run()"
+```
+
+断言：下落列=表4.5/4.9/4.16；调整=表4.6/4.17（例4.4 无需调整）；调整后列跑引擎钩数与教材一致——
+例4.3 二·四/二·五/三·五 = (5,10)/(5,10)/(5,9)，例4.6 二·五 = (5,14,转)，例4.4 不暂合 = (6,7)；习题 2/7/8/9/12 有可行方案且终列非降。
+
+## 已知限制
+
+- **例4.4 三列合并（二·四·五）与习题3（最多 3 条线）**：当前调度引擎对"三列暂合 / 极紧预算"仍无可行方案（页面会提示无可行方案）。
+- **自动调整仅覆盖单对边界邻组**：对非教材算例给出的是引擎实测钩数（可运行、终列正确），未必等于某人工最优解。
+- **教材问答语料失效**：`rag/corpus.py` 的 `SOURCES` 仍指向 `assets/…/*.md`（现不存在），`/api/qa` 查询会报错；需要时把 SOURCES 指到实际 md（第四章在 `knowledge_base/调车工作/铁路行车组织第2版-调车工作.md`，第十一章在 `过程/…/…md`）。本次未修。
+- OCR 噪声：教材原文 md 含少量错字（如 `t节`），`knowledge_base` 提炼已按上下文统一。
+- 教学演示用 Flask `debug=True`；局域网并发量级小，`threaded=True` 够用。生产请换 WSGI 并关 debug。

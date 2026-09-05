@@ -10,90 +10,94 @@
     <div class="container">
         <header>
             <h1>调车作业计划智能体</h1>
-            <p class="subtitle">分组选编法 — 调车作业计划自动生成</p>
+            <p class="subtitle">按站顺编组 · 摘挂列车「调车表法」（下落 → 调整 → 暂合 → 股道分配 → 钩计划）</p>
         </header>
 
         <main>
-            <section class="card input-section">
+            <!-- ============ 输入 ============ -->
+            <section class="card">
                 <h2>输入算例</h2>
+
+                <div class="preset-row">
+                    <span class="preset-label">例题：</span>
+                    <button type="button" class="btn-sm preset" data-preset="例4.3">例4.3</button>
+                    <button type="button" class="btn-sm preset" data-preset="例4.4">例4.4</button>
+                    <button type="button" class="btn-sm preset" data-preset="例4.6">例4.6</button>
+                    <span class="preset-label" style="margin-left:12px">习题：</span>
+                    <button type="button" class="btn-sm preset" data-preset="习题2">习题2</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题3">习题3</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题7">习题7</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题8">习题8</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题9">习题9</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题12">习题12</button>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="numTracks">分类股道数：</label>
-                        <input type="number" id="numTracks" min="2" max="6" value="3">
+                        <label for="seqInput">待编车列（支持 <code>4₂ 5₂…</code>、<code>4_2</code>、纯数字、空格/逗号分隔；字母需填站序）</label>
+                        <input type="text" id="seqInput" placeholder="如 3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁">
+                    </div>
+                    <div class="form-group narrow">
+                        <label for="stationOrder">站序（可选）</label>
+                        <input type="text" id="stationOrder" placeholder="如 fedcba（自远及近）">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group narrow">
+                        <label for="homeTrack">待编车列停留股道</label>
+                        <input type="text" id="homeTrack" value="10">
                     </div>
                     <div class="form-group">
-                        <label for="trainName">列车名称（可选）：</label>
-                        <input type="text" id="trainName" placeholder="如 FZ-01" maxlength="20">
+                        <label for="allowedTracks">可用作业股道（含停留道，逗号分隔；留空 = 不限）</label>
+                        <input type="text" id="allowedTracks" placeholder="如 10,11,12,13">
+                    </div>
+                    <div class="form-group narrow">
+                        <label for="budget">或：最多线路条数（含停留道）</label>
+                        <input type="number" id="budget" min="2" max="10" placeholder="留空则不限">
+                    </div>
+                    <div class="form-group narrow">
+                        <label for="departTrack">编成后转往股道</label>
+                        <input type="text" id="departTrack" value="DF5">
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>目标编组顺序（从左到右）：</label>
-                    <div id="targetOrderContainer" class="order-input">
-                        <input type="text" class="order-tag" value="甲" data-index="0">
-                        <input type="text" class="order-tag" value="乙" data-index="1">
-                        <input type="text" class="order-tag" value="丙" data-index="2">
-                        <button type="button" class="btn-sm" id="addOrderBtn">+添加去向</button>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>车辆列表（从机车端到尾部）：</label>
-                    <div class="table-actions">
-                        <button type="button" class="btn btn-secondary" id="loadExample">填入示例</button>
-                        <button type="button" class="btn btn-secondary" id="addRowBtn">+添加一行</button>
-                    </div>
-                    <div class="table-wrapper">
-                        <table id="carTable">
-                            <thead>
-                                <tr>
-                                    <th>序号</th>
-                                    <th>车号</th>
-                                    <th>去向</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="carTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <button type="button" class="btn btn-primary" id="solveBtn">计算调车计划</button>
+                <button type="button" class="btn btn-primary" id="solveBtn">计算调车作业计划</button>
                 <div id="errorMsg" class="error-msg" style="display:none;"></div>
             </section>
 
-            <section class="card result-section" id="resultSection" style="display:none;">
-                <h2>调车作业计划表</h2>
-                <div id="resultStats" class="stats-bar"></div>
+            <!-- ============ 结果 ============ -->
+            <div id="resultRoot" style="display:none;">
+                <section class="card" id="metaCard" style="display:none;"></section>
 
-                <div class="table-wrapper">
-                    <table id="resultTable">
-                        <thead>
-                            <tr>
-                                <th>顺序</th>
-                                <th>作业股道</th>
-                                <th>摘/挂</th>
-                                <th>辆数</th>
-                                <th>车号</th>
-                                <th>说明</th>
-                            </tr>
-                        </thead>
-                        <tbody id="resultTableBody">
-                        </tbody>
-                    </table>
-                </div>
+                <section class="card" id="stageCard" style="display:none;">
+                    <h2>下落 → 调整（调车表）</h2>
+                    <div id="xialuoWrap"></div>
+                    <div id="adjustWrap"></div>
+                </section>
 
-                <div class="formation-section">
-                    <h3>最终出发编成</h3>
-                    <div id="finalFormation" class="formation-display"></div>
-                </div>
+                <section class="card" id="schemeCard" style="display:none;">
+                    <h2>暂合候选方案 <span class="hint">点击选择方案；★ 为按时间模型最优</span></h2>
+                    <div id="schemePicker" class="scheme-picker"></div>
 
-                <div id="trackStatesSection" style="display:none;">
-                    <h3>解体过程中各股道状态</h3>
-                    <div id="trackStatesDisplay"></div>
-                </div>
-            </section>
+                    <div id="schemeDetail">
+                        <h3>钩计划与逐步股道图</h3>
+                        <div id="statsBar" class="stats-bar"></div>
+                        <div id="trackAlloc" class="track-alloc"></div>
+                        <div id="planTableWrap" class="table-wrapper"></div>
+                        <div class="formation-section">
+                            <h3>编成后车列（出发去向）</h3>
+                            <div id="finalFormation" class="formation-display"></div>
+                        </div>
+                        <div class="yard-section">
+                            <h3>逐步股道图 <span class="hint">（左=远端/内方 → 右=机车端；🚂 表示机车）</span></h3>
+                            <div id="playerCtrl" class="stage-nav"></div>
+                            <div id="stepInfo" class="step-info"></div>
+                            <div id="yardCanvas"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
 
         <footer>
@@ -103,224 +107,393 @@
     </div>
 
     <script>
-        const exampleCars = [
-            { id: 'H', dest: '乙', order: 1 },
-            { id: 'G', dest: '丙', order: 2 },
-            { id: 'F', dest: '甲', order: 3 },
-            { id: 'E', dest: '乙', order: 4 },
-            { id: 'D', dest: '丙', order: 5 },
-            { id: 'C', dest: '甲', order: 6 },
-            { id: 'B', dest: '乙', order: 7 },
-            { id: 'A', dest: '甲', order: 8 },
-        ];
+        'use strict';
 
-        let carCounter = 10;
-        let destCounter = 4;
+        // ---------------- 输入与示例 ----------------
+        const PRESETS = {
+            "例4.3": { seq: "b₂a₁c₁f₂e₁b₁f₂a₂c₁e₁d₂a₁", station_order: "fedcba", home: "10", allowed: "10,11,12,13", budget: "", depart: "DF3" },
+            "例4.4": { seq: "edgafbgfcea", station_order: "gfedcba", home: "12", allowed: "10,11,12,13,14", budget: "", depart: "DF5" },
+            "例4.6": { seq: "4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₂", station_order: "", home: "7", allowed: "7,8,9,10", budget: "", depart: "DF3" },
+            "习题2": { seq: "1₃4₁6₁5₃1₂4₁3₁2₂6₂7₃", station_order: "", home: "10", allowed: "", budget: 5, depart: "DF5" },
+            "习题3": { seq: "3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁", station_order: "", home: "10", allowed: "", budget: 3, depart: "DF5" },
+            "习题7": { seq: "73652264135347", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
+            "习题8": { seq: "659142481736", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
+            "习题9": { seq: "835327144357664", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
+            "习题12": { seq: "4₃3₂6₁2₁1₃5₂4₁2₂1₃6₂5₁4₁3₁", station_order: "", home: "11", allowed: "11,12,13,14", budget: "", depart: "DF5" },
+        };
 
-        function addCarRow(carId, dest) {
-            const tbody = document.getElementById('carTableBody');
-            const tr = document.createElement('tr');
-            const rowNum = tbody.children.length + 1;
-            tr.innerHTML = `
-                <td class="row-num">${rowNum}</td>
-                <td><input type="text" class="car-id" value="${carId || ''}" placeholder="如 A" maxlength="10"></td>
-                <td><input type="text" class="car-dest" value="${dest || ''}" placeholder="如 甲" maxlength="10"></td>
-                <td><button type="button" class="btn-sm btn-danger delete-row" onclick="deleteRow(this)">删除</button></td>
-            `;
-            tbody.appendChild(tr);
-            updateRowNumbers();
-        }
+        const SUB = { "₁":1,"₂":2,"₃":3,"₄":4,"₅":5,"₆":6,"₇":7,"₈":8,"₉":9 };
 
-        function addOrderTag(value) {
-            const container = document.getElementById('targetOrderContainer');
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'order-tag';
-            input.value = value || '';
-            input.dataset.index = container.querySelectorAll('.order-tag').length;
-            container.insertBefore(input, container.lastElementChild);
-        }
-
-        function deleteRow(btn) {
-            const tr = btn.closest('tr');
-            if (document.querySelectorAll('#carTableBody tr').length <= 2) {
-                showError('车辆至少需要2辆');
-                return;
-            }
-            tr.remove();
-            updateRowNumbers();
-        }
-
-        function updateRowNumbers() {
-            const rows = document.querySelectorAll('#carTableBody tr');
-            rows.forEach((row, i) => {
-                row.querySelector('.row-num').textContent = i + 1;
+        document.querySelectorAll('.preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const p = PRESETS[btn.dataset.preset];
+                if (!p) return;
+                document.getElementById('seqInput').value = p.seq;
+                document.getElementById('stationOrder').value = p.station_order || '';
+                document.getElementById('homeTrack').value = p.home;
+                document.getElementById('allowedTracks').value = p.allowed || '';
+                document.getElementById('budget').value = p.budget === '' ? '' : p.budget;
+                document.getElementById('departTrack').value = p.depart;
+                hideError();
+                solve();
             });
-        }
-
-        function getCarsFromTable() {
-            const rows = document.querySelectorAll('#carTableBody tr');
-            const cars = [];
-            for (let i = rows.length - 1; i >= 0; i--) {
-                const id = rows[i].querySelector('.car-id').value.trim();
-                const dest = rows[i].querySelector('.car-dest').value.trim();
-                if (id && dest) cars.push({ id, dest });
-            }
-            return cars;
-        }
-
-        function getTargetOrder() {
-            const tags = document.querySelectorAll('.order-tag');
-            const order = [];
-            tags.forEach(tag => {
-                const val = tag.value.trim();
-                if (val) order.push(val);
-            });
-            return order;
-        }
-
-        function showError(msg) {
-            const el = document.getElementById('errorMsg');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-
-        function hideError() {
-            document.getElementById('errorMsg').style.display = 'none';
-        }
-
-        // 填入示例
-        document.getElementById('loadExample').addEventListener('click', function() {
-            document.getElementById('numTracks').value = 3;
-            document.getElementById('trainName').value = 'FZ-01';
-
-            // 重置去向顺序
-            const container = document.getElementById('targetOrderContainer');
-            container.querySelectorAll('.order-tag').forEach(el => el.remove());
-            ['甲', '乙', '丙'].forEach(v => addOrderTag(v));
-
-            // 填入车辆（按机车端到尾部顺序：机车端最先处理=表格最下方）
-            const tbody = document.getElementById('carTableBody');
-            tbody.innerHTML = '';
-            exampleCars.forEach(c => addCarRow(c.id, c.dest));
-
-            hideError();
         });
 
-        // 添加行
-        document.getElementById('addRowBtn').addEventListener('click', function() {
-            addCarRow('', '');
-        });
+        document.getElementById('solveBtn').addEventListener('click', solve);
 
-        // 添加去向
-        document.getElementById('addOrderBtn').addEventListener('click', function() {
-            addOrderTag('');
-        });
+        function showError(m) { const el = document.getElementById('errorMsg'); el.textContent = m; el.style.display = 'block'; }
+        function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
 
-        // 提交求解
-        document.getElementById('solveBtn').addEventListener('click', async function() {
-            hideError();
+        // 前端校验（规则与 app.py /api/solve 镜像，改规则需同步）
+        function validateInput() {
+            const seq = document.getElementById('seqInput').value.trim();
+            if (!seq) { return '待编车列为空'; }
+            const toks = tokenizeForCheck(seq);
+            if (toks.length < 2) { return '待编车列至少需要 2 个车组（2 辆以上）'; }
+            const order = document.getElementById('stationOrder').value.trim();
+            const hasLetter = /[a-zA-Z]/.test(seq);
+            if (hasLetter && !order) { return '含字母站名时请填「站序」（编成顺序，如 fedcba）'; }
+            return null;
+        }
 
-            const cars = getCarsFromTable();
-            const targetOrder = getTargetOrder();
-            const numTracks = parseInt(document.getElementById('numTracks').value);
-
-            // 前端校验
-            if (cars.length < 2) {
-                showError('车辆至少需要2辆');
-                return;
-            }
-            if (targetOrder.length === 0) {
-                showError('请设置目标编组顺序');
-                return;
-            }
-            // 检查去向是否都在目标顺序中
-            const dests = new Set(cars.map(c => c.dest));
-            for (const d of dests) {
-                if (!targetOrder.includes(d)) {
-                    showError(`去向"${d}"不在目标编组顺序中`);
-                    return;
+        function tokenizeForCheck(seq) {
+            // 简单计数（不用于求解，只做前端即时提示）
+            const sep = /[\s,，]/.test(seq);
+            if (sep) return seq.split(/[\s,，]+/).filter(Boolean);
+            if (/[₀-₉]/.test(seq)) {
+                const out = []; let i = 0;
+                while (i < seq.length) {
+                    const ch = seq[i];
+                    if (/[0-9A-Za-z]/.test(ch)) { out.push(ch + (SUB[seq[i+1]] ? seq[++i] : '')); }
+                    i++;
                 }
+                return out;
             }
-            // 去重校验
-            const seen = new Set();
-            for (const c of cars) {
-                if (seen.has(c.id)) {
-                    showError(`车号"${c.id}"重复`);
-                    return;
-                }
-                seen.add(c.id);
-            }
+            return seq.split('');
+        }
 
-            // 发送请求
+        function buildPayload() {
+            const seq = document.getElementById('seqInput').value.trim();
+            const order = document.getElementById('stationOrder').value.trim();
+            const home = document.getElementById('homeTrack').value.trim() || '10';
+            const allowedRaw = document.getElementById('allowedTracks').value.trim();
+            const budgetRaw = document.getElementById('budget').value.trim();
+            const depart = document.getElementById('departTrack').value.trim() || 'DF5';
+            const payload = { seq, home_track: home, depart_track: depart };
+            if (order) payload.station_order = order;
+            if (allowedRaw) {
+                payload.allowed_tracks = allowedRaw.split(/[\s,，]+/).filter(Boolean);
+                if (!payload.allowed_tracks.includes(home)) payload.allowed_tracks.unshift(home);
+            } else if (budgetRaw !== '') {
+                const b = parseInt(budgetRaw, 10);
+                if (isNaN(b) || b < 1 || b > 10) { showError('线路条数须为 1~10 的整数'); return null; }
+                payload.track_budget = b;
+            }
+            return payload;
+        }
+
+        // ---------------- 求解与渲染 ----------------
+        let RESULT = null;
+
+        async function solve() {
+            hideError();
+            const err = validateInput();
+            if (err) { showError(err); return; }
+            const payload = buildPayload();
+            if (!payload) return;
+            const btn = document.getElementById('solveBtn');
             try {
-                this.disabled = true;
-                this.textContent = '计算中...';
-
+                btn.disabled = true; btn.textContent = '计算中…';
                 const resp = await fetch('/api/solve', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cars, num_tracks: numTracks, target_order: targetOrder })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
                 });
-
                 const data = await resp.json();
-
-                if (data.error) {
-                    showError(data.error);
-                    return;
-                }
-
-                displayResult(data);
-
+                if (data.error) { showError(data.error); return; }
+                RESULT = data;
+                renderAll();
             } catch (e) {
                 showError('网络错误：无法连接到服务器');
             } finally {
-                this.disabled = false;
-                this.textContent = '计算调车计划';
+                btn.disabled = false; btn.textContent = '计算调车作业计划';
             }
-        });
-
-        function displayResult(data) {
-            const section = document.getElementById('resultSection');
-            section.style.display = 'block';
-
-            // 统计信息
-            const s = data.stats;
-            document.getElementById('resultStats').innerHTML = `
-                <span class="stat">总调车程数：<strong>${s.total_steps}</strong> 钩</span>
-                <span class="stat">牵出：${s.pull_out_count} 钩</span>
-                <span class="stat">解体：${s.break_up_count} 钩</span>
-                <span class="stat">编组：${s.make_up_count} 钩</span>
-                <span class="stat">使用股道：${s.tracks_used} 条</span>
-            `;
-
-            // 计划表
-            const tbody = document.getElementById('resultTableBody');
-            tbody.innerHTML = '';
-            data.steps.forEach(step => {
-                const tr = document.createElement('tr');
-                tr.className = `phase-${step.phase}`;
-                tr.innerHTML = `
-                    <td>${step.seq}</td>
-                    <td>${step.track}</td>
-                    <td>${step.op}</td>
-                    <td>${step.qty}</td>
-                    <td>${step.cars}</td>
-                    <td>${step.desc}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // 最终编成
-            const formation = document.getElementById('finalFormation');
-            formation.innerHTML = data.final_formation.map((car, i) => `
-                <span class="car-tag">${car}</span>
-                ${i < data.final_formation.length - 1 ? '<span class="car-arrow">→</span>' : ''}
-            `).join('');
         }
 
-        // 初始化
-        document.getElementById('loadExample').click();
+        const PALETTE = ['#1890ff','#fa8c16','#52c41a','#722ed1','#eb2f96','#13c2c2','#a0d911','#f5222d','#2f54eb','#faad14','#08979c','#7cb305','#b37feb','#ff7a45'];
+        const stationColor = s => PALETTE[(s - 1) % PALETTE.length];
+        const COL_NAME = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+        function subOf(count) {
+            if (count === 1) return '';
+            const m = { 2:"₂",3:"₃",4:"₄",5:"₅",6:"₆",7:"₇",8:"₈",9:"₉" };
+            return m[count] || '';
+        }
+        function tokenText(g) { return g.station + subOf(g.count); }
+
+        // 渲染一张"列 × 待编车组"横表；hl 为需要高亮的 pos 集合
+        function colTableHtml(headerGroups, colList, hl) {
+            let rows = '';
+            colList.forEach((col, r) => {
+                const map = {};
+                col.forEach(g => map[g.pos] = g);
+                let cells = '';
+                headerGroups.forEach(h => {
+                    const g = map[h.pos];
+                    const cls = g ? (hl && hl[g.pos] ? 'cell-has cell-moved' : 'cell-has') : '';
+                    const st = g ? `style="color:${stationColor(g.station)}"` : '';
+                    cells += `<td class="${cls}" ${st}>${g ? tokenText(g) : ''}</td>`;
+                });
+                rows += `<tr><th class="row-col">${COL_NAME[r + 1]}列</th>${cells}</tr>`;
+            });
+            return `<div class="table-wrapper"><table class="xl-table">
+                <tr><th class="row-col">待编车组</th>${headerGroups.map(h => `<th>${tokenText(h)}</th>`).join('')}</tr>
+                ${rows}</table></div>`;
+        }
+
+        function renderAdjust(headerGroups, tz) {
+            const wrap = document.getElementById('adjustWrap');
+            const note = (tz && tz.note) || '';
+            const moves = (tz && tz.moves) || [];
+            let html = '<h3>第二步 · 调整（形成邻组）</h3>';
+            html += `<p class="note-text">${note}</p>`;
+            if (moves.length) {
+                const hl = {};
+                const list = moves.map(m => {
+                    const g = headerGroups[m.pos - 1];
+                    const n = headerGroups[m.neighbor_pos - 1];
+                    hl[g.pos] = true;
+                    return `<li>第 <b>${m.pos}</b> 位的 <b>${tokenText(g)}</b>：
+                            列${COL_NAME[m.from_col + 1]} → 列${COL_NAME[m.to_col + 1]}，
+                            与第 ${m.neighbor_pos} 位的 ${tokenText(n)} 相邻，成<b>邻组 ${tokenText(g)}${tokenText(n)}</b>
+                            （同线连续，溜放可一钩，省 1 溜放钩）</li>`;
+                }).join('');
+                html += `<ul class="move-list">${list}</ul>`;
+                html += `<div style="margin-top:6px"><p class="note-text">调整后调车表（被移入的车组以高亮标出）：</p>
+                        ${colTableHtml(headerGroups, tz.cols_after, hl)}</div>`;
+            }
+            wrap.innerHTML = html;
+        }
+
+        // 渲染：解析摘要 + 下落表 + 调整说明
+        function renderAll() {
+            const root = document.getElementById('resultRoot');
+            root.style.display = 'block';
+            const meta = RESULT.meta, stages = RESULT.stages;
+
+            // meta card
+            const mc = document.getElementById('metaCard');
+            mc.style.display = 'block';
+            let groupTotals = Object.keys(meta.group_totals).map(k => ({ s: +k, c: meta.group_totals[k] }));
+            groupTotals.sort((a, b) => a.s - b.s);
+            mc.innerHTML = `
+                <h2>算例概览</h2>
+                <div class="stats-bar">
+                    <span class="stat">总辆数：<strong>${meta.total_cars}</strong></span>
+                    <span class="stat">去向数：<strong>${meta.max_station}</strong></span>
+                    <span class="stat">停留股道：<strong>${meta.home_track}</strong></span>
+                    <span class="stat">转往：<strong>${meta.depart_track}</strong></span>
+                </div>
+                <div class="group-totals">去向分布：
+                    ${groupTotals.map(x => `<span class="chip-mini" style="background:${stationColor(x.s)}">${x.s}×${x.c}</span>`).join('')}
+                </div>
+                <div class="parsed-seq">待编车组（远 → 机车端）：
+                    ${meta.parsed_seq.map(g => `<span class="g-chip" style="border-color:${stationColor(g.station)}">${g.station}${subOf(g.count)}</span>`).join('')}
+                </div>`;
+
+            // stage: 下落表 + 调整
+            const sc = document.getElementById('stageCard');
+            sc.style.display = 'block';
+            const header = stages.xialuo.header;
+            document.getElementById('xialuoWrap').innerHTML = `
+                <h3>第一步 · 下落（原始调车表）</h3>
+                ${colTableHtml(header, stages.xialuo.cols, null)}
+                <p class="note-text">把反顺序车组下落到不同"列"；每列将占用一条股道（或与它列暂合共用）。同一列内部去向非降。</p>`;
+            renderAdjust(header, stages.tiaozheng);
+
+            renderSchemes();
+        }
+
+        // ---------------- 方案选择与详情 ----------------
+        let CURRENT_SCHEME = null;
+
+        function renderSchemes() {
+            const schemes = RESULT.schemes || [];
+            const card = document.getElementById('schemeCard');
+            if (!schemes.length) {
+                card.style.display = 'none';
+                showError(RESULT.note || '无可行方案');
+                return;
+            }
+            card.style.display = 'block';
+            const picker = document.getElementById('schemePicker');
+            picker.innerHTML = schemes.map(s => {
+                const st = s.stats;
+                const cls = s.best ? 'scheme-chip best' : 'scheme-chip';
+                return `<button type="button" class="${cls}" data-id="${s.id}">
+                    ${s.best ? '★' : ''}${s.label}
+                    <span class="s-chip-sub">${st.hooks_pull}挂 · ${st.hooks_throw}溜 · ${st.hooks_transfer}转 = ${st.textbook_total}钩(${st.tracks_used}线)</span>
+                </button>`;
+            }).join('');
+            picker.querySelectorAll('.scheme-chip').forEach(b => {
+                b.addEventListener('click', () => {
+                    CURRENT_SCHEME = RESULT.schemes.find(s => s.id === b.dataset.id);
+                    picker.querySelectorAll('.scheme-chip').forEach(x => x.classList.toggle('active', x === b));
+                    renderSchemeDetail();
+                });
+            });
+            const best = schemes.find(s => s.best) || schemes[0];
+            CURRENT_SCHEME = best;
+            picker.querySelector(`[data-id="${best.id}"]`).classList.add('active');
+            renderSchemeDetail();
+        }
+
+        function renderSchemeDetail() {
+            const s = CURRENT_SCHEME, st = s.stats;
+            document.getElementById('statsBar').innerHTML = `
+                <span class="stat">挂车钩：<strong>${st.hooks_pull}</strong></span>
+                <span class="stat">溜放钩：<strong>${st.hooks_throw}</strong></span>
+                <span class="stat">转线钩：<strong>${st.hooks_transfer}</strong></span>
+                <span class="stat">总钩数：<strong>${st.total_hooks}</strong>（教材口径 ${st.textbook_total}，不含转线）</span>
+                <span class="stat">调车程：<strong>${st.cheng}</strong></span>
+                <span class="stat">使用股道：<strong>${st.tracks_used}</strong> 条</span>`;
+            document.getElementById('trackAlloc').innerHTML =
+                '股道分配：' + s.track_alloc.map(t => `<span class="alloc-chip"><b>${t.track}</b>道 ← ${t.super}</span>`).join('');
+
+            // 钩计划表
+            const tbody = s.hooks.map((h, i) => `
+                <tr class="hook-row" data-hook="${i}" data-round="${h.phase_round}">
+                    <td>${h.seq}</td><td><b>${h.code}</b></td><td>${kindTag(h.kind)}</td>
+                    <td>${h.qty}</td><td>${h.cars.join('')}</td><td>${h.note || ''}</td>
+                </tr>`).join('');
+            document.getElementById('planTableWrap').innerHTML = `
+                <table id="planTable"><thead><tr>
+                    <th>顺序</th><th>作业</th><th>种类</th><th>辆数</th><th>去向</th><th>说明</th>
+                </tr></thead><tbody>${tbody}</tbody></table>`;
+
+            // 编成
+            const fm = document.getElementById('finalFormation');
+            fm.innerHTML = s.final_formation.map((v, i) =>
+                `<span class="car-tag" style="background:${stationColor(v)}">${v}</span>` +
+                (i < s.final_formation.length - 1 ? '<span class="car-arrow">→</span>' : '')).join('');
+
+            // 逐步图数据：index 0 = 初始，i>=1 = hooks[i-1].state
+            PLAYER.scheme = s;
+            PLAYER.states = buildStates(s);
+            PLAYER.idx = 0;
+            buildPlayerControls();
+            drawStep();
+        }
+
+        function kindTag(k) {
+            const m = { '挂': ['+', 'phase-牵出'], '溜': ['−', 'phase-解体'], '转': ['转', 'phase-转线'] };
+            const x = m[k] || m['溜'];
+            return `<span class="kind ${x[1]}">${x[0]}</span>`;
+        }
+
+        // 构造 states: [初始] + 每钩后状态
+        function buildStates(scheme) {
+            const meta = RESULT.meta;
+            const home = meta.home_track;
+            const trackOrder = displayOrder(scheme);
+            const initTracks = {};
+            trackOrder.forEach(t => initTracks[t] = []);
+            let cars = [];
+            meta.parsed_seq.forEach((g, i) => { for (let k = 0; k < g.count; k++) cars.push({ station: g.station, gid: g.pos }); });
+            initTracks[home] = cars;
+            const states = [{ tracks: initTracks, lead: [] }];
+            scheme.hooks.forEach(h => states.push(h.state));
+            return states;
+        }
+
+        function displayOrder(scheme) {
+            // home 优先，其余数值/字典序
+            const home = RESULT.meta.home_track;
+            const seen = [];
+            scheme.track_alloc.forEach(t => { if (!seen.includes(t.track)) seen.push(t.track); });
+            seen.sort((a, b) => (a === home ? -1 : b === home ? 1 : num(a) - num(b)));
+            return seen;
+        }
+        function num(x) { const n = parseInt(x, 10); return isNaN(n) ? x.charCodeAt(0) : n; }
+
+        // ---------------- 逐步播放 ----------------
+        const PLAYER = { scheme: null, states: [], idx: 0, maxRound: 0 };
+
+        function buildPlayerControls() {
+            const maxR = Math.max(1, ...PLAYER.scheme.hooks.map(h => h.phase_round));
+            PLAYER.maxRound = maxR;
+            document.getElementById('playerCtrl').innerHTML = `
+                <button type="button" class="btn-sm" id="pPrev">◀ 上一步</button>
+                <button type="button" class="btn-sm" id="pNext">下一步 ▶</button>
+                <button type="button" class="btn-sm" id="pRound">跳到下一轮 ▶▶</button>
+                <button type="button" class="btn-sm" id="pEnd">到结尾 ⏭</button>
+                <span id="pPos" class="hint" style="margin-left:8px"></span>`;
+            document.getElementById('pPrev').addEventListener('click', () => { if (PLAYER.idx > 0) { PLAYER.idx--; drawStep(); } });
+            document.getElementById('pNext').addEventListener('click', () => { if (PLAYER.idx < PLAYER.states.length - 1) { PLAYER.idx++; drawStep(); } });
+            document.getElementById('pEnd').addEventListener('click', () => { PLAYER.idx = PLAYER.states.length - 1; drawStep(); });
+            document.getElementById('pRound').addEventListener('click', () => {
+                const cur = PLAYER.idx === 0 ? 0 : PLAYER.scheme.hooks[PLAYER.idx - 1].phase_round;
+                let nxt = PLAYER.idx;
+                while (nxt < PLAYER.states.length - 1) {
+                    const hr = nxt === 0 ? 0 : PLAYER.scheme.hooks[nxt - 1].phase_round;
+                    if (hr > cur) break;
+                    nxt++;
+                }
+                PLAYER.idx = nxt; drawStep();
+            });
+        }
+
+        function drawStep() {
+            const s = PLAYER.scheme, st = PLAYER.states[PLAYER.idx];
+            const info = document.getElementById('stepInfo');
+            const hook = PLAYER.idx === 0 ? null : s.hooks[PLAYER.idx - 1];
+            const posEl = document.getElementById('pPos');
+            if (posEl) {
+                posEl.textContent = hook
+                    ? `第 ${hook.seq} 钩（第 ${hook.phase_round} 轮）`
+                    : `初始（待编车列在 ${RESULT.meta.home_track} 道）`;
+            }
+            if (hook) {
+                info.innerHTML = `<span class="step-code">${hook.code}</span>　${hook.note || ''}` +
+                    (hook.kind === '溜' ? `　→ ${hook.cars.length} 辆去向 <b>${hook.cars.join(' ')}</b>` : '');
+            } else {
+                info.textContent = '初始状态';
+            }
+
+            const order = displayOrder(s);
+            let html = '';
+            const shownTracks = {};
+            order.forEach(t => { shownTracks[t] = st.tracks[t] || []; });
+            Object.keys(st.tracks).forEach(t => { if (!(t in shownTracks)) shownTracks[t] = st.tracks[t]; });
+
+            // 只画"出现过"的道（含空的 home）
+            const active = Object.keys(shownTracks).filter(t => shownTracks[t].length || t === RESULT.meta.home_track);
+            html = active.map(t => trackRowHTML(t, shownTracks[t])).join('');
+            // 牵出线
+            html += `<div class="track-row lead-row"><span class="track-label">牵出线</span>` +
+                `<div class="track-line">${carChipsHTML(st.lead)}<span class="engine">🚂</span></div></div>`;
+            document.getElementById('yardCanvas').innerHTML = html;
+
+            // 钩表高亮
+            document.querySelectorAll('#planTable .hook-row').forEach(tr => {
+                const i = +tr.dataset.hook;
+                tr.classList.toggle('hl', i === PLAYER.idx - 1);
+            });
+        }
+
+        function trackRowHTML(label, cars) {
+            return `<div class="track-row"><span class="track-label">${label}道</span>` +
+                `<div class="track-line">${carChipsHTML(cars)}</div></div>`;
+        }
+
+        function carChipsHTML(cars) {
+            let html = '';
+            for (let i = 0; i < cars.length; i++) {
+                const c = cars[i];
+                const brk = (i > 0 && cars[i - 1].gid !== c.gid) ? ' class="gap"' : '';
+                html += `<span${brk} class="car-mini" style="background:${stationColor(c.station)}" title="去向 ${c.station}">${c.station}</span>`;
+            }
+            return html;
+        }
     </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import traceback
 from flask import Flask, request, jsonify
 from scripts.shunting_plan import ShuntingPlan
+from scripts import parser as seq_parser
 from rag import qa
 
 app = Flask(__name__)
@@ -18,54 +19,63 @@ def qa_page():
 
 @app.route("/api/solve", methods=["POST"])
 def solve():
+    """调车表法（按站顺编组）求解。
+
+    请求：{"seq": "…", "station_order": null, "home_track": "10",
+            "allowed_tracks": [...] | "track_budget": n, "depart_track": "DF5",
+            "weights": {pull,throw,transfer}}
+    返回：{success, meta, stages{xialuo,tiaozheng}, schemes[], best_scheme_id}
+    校验规则与 static/index.html 的 validate 函数保持一致（改输入规则需同步两处）。
+    """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "请求体为空"}), 400
 
-        cars_raw = data.get("cars", [])
-        num_tracks = data.get("num_tracks", 3)
-        target_order = data.get("target_order", [])
+        seq = (data.get("seq") or "").strip()
+        station_order = data.get("station_order") or None
+        home = str(data.get("home_track") or "10").strip()
+        depart = str(data.get("depart_track") or "DF").strip()
+        weights = data.get("weights")
 
-        # 校验：车辆列表
-        if not cars_raw or len(cars_raw) < 2:
-            return jsonify({"error": "车辆至少需要2辆"}), 400
+        if not seq:
+            return jsonify({"error": "待编车列为空"}), 400
+        # 解析校验（抛出 ParseError → 400）
+        groups = seq_parser.parse_seq(seq, station_order)
+        if sum(g.count for g in groups) < 2:
+            return jsonify({"error": "待编车辆至少 2 辆"}), 400
 
-        cars = []
-        seen_ids = set()
-        for item in cars_raw:
-            car_id = item.get("id", "").strip()
-            dest = item.get("dest", "").strip()
-            if not car_id:
-                return jsonify({"error": "存在空车号，请检查输入"}), 400
-            if not dest:
-                return jsonify({"error": f"车号{car_id}的去向为空"}), 400
-            if car_id in seen_ids:
-                return jsonify({"error": f"车号{car_id}重复"}), 400
-            seen_ids.add(car_id)
-            cars.append((car_id, dest))
+        allowed = data.get("allowed_tracks")
+        budget = data.get("track_budget")
+        if allowed is not None:
+            allowed = [str(t).strip() for t in allowed if str(t).strip()]
+            if home not in allowed:
+                allowed.insert(0, home)     # home 恒为可作业道
+            if not allowed:
+                return jsonify({"error": "可用股道为空"}), 400
+        elif budget is not None:
+            if not isinstance(budget, int) or budget < 1 or budget > 10:
+                return jsonify({"error": "track_budget 须为 1~10 的整数"}), 400
+        if not depart:
+            return jsonify({"error": "出发股道为空"}), 400
+        if weights is not None and not isinstance(weights, dict):
+            return jsonify({"error": "weights 须为对象"}), 400
 
-        # 校验：股道数
-        if not isinstance(num_tracks, int) or num_tracks < 2 or num_tracks > 6:
-            return jsonify({"error": "股道数须为2~6的整数"}), 400
+        result = ShuntingPlan(
+            seq, home_track=home, allowed_tracks=allowed,
+            track_budget=budget, depart_track=depart,
+            station_order=station_order, weights=weights,
+        ).solve()
 
-        # 校验：目标顺序
-        if not target_order:
-            return jsonify({"error": "请设置目标编组顺序"}), 400
+        if not result["schemes"]:
+            return jsonify({
+                "success": True,
+                **result,
+                "note": "在当前可用股道数下无可运行的暂合方案（调度无法收敛）。",
+            })
+        return jsonify(result)
 
-        # 校验：去向是否都能在目标顺序中找到
-        all_dests = set(d for _, d in cars)
-        for d in all_dests:
-            if d not in target_order:
-                return jsonify({"error": f"去向'{d}'不在目标编组顺序中"}), 400
-
-        # 求解
-        planner = ShuntingPlan(cars, num_tracks, target_order)
-        result = planner.solve()
-
-        return jsonify({"success": True, **result})
-
-    except ValueError as e:
+    except seq_parser.ParseError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         traceback.print_exc()

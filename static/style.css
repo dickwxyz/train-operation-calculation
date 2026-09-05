@@ -434,3 +434,61 @@ textarea#question:focus {
         padding: 6px 8px;
     }
 }
+
+/* ===== 调车表法求解页 ===== */
+.form-group.narrow { max-width: 240px; }
+.hint { color: #999; font-weight: normal; font-size: 12px; }
+.note-text { color: #666; font-size: 13px; margin-top: 6px; }
+
+.preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+.preset-label { font-size: 13px; color: #888; }
+.preset { padding: 4px 10px; }
+
+.group-totals, .parsed-seq { margin: 8px 0; font-size: 13px; color: #555; }
+.chip-mini { display: inline-block; min-width: 30px; text-align: center; color: #fff;
+  border-radius: 3px; padding: 2px 6px; margin: 0 3px 3px 0; font-size: 12px; }
+.g-chip { display: inline-block; min-width: 30px; text-align: center; border: 2px solid;
+  border-radius: 4px; padding: 2px 4px; margin: 2px; font-weight: 600; }
+
+.xl-table th, .xl-table td { text-align: center; padding: 4px 6px; min-width: 34px; font-size: 13px; }
+.xl-table .row-col { background: #fafafa; font-weight: 600; color: #555; }
+.xl-table .cell-has { font-weight: 700; }
+
+.scheme-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.scheme-chip { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; cursor: pointer;
+  background: #fff; text-align: left; font-size: 13px; line-height: 1.5; transition: all .15s; }
+.scheme-chip:hover { border-color: #1890ff; }
+.scheme-chip.best { border-color: #faad14; background: #fffbe6; }
+.scheme-chip.active { border-color: #1890ff; background: #e6f7ff; box-shadow: 0 0 0 2px rgba(24,144,255,.15); }
+.s-chip-sub { display: block; color: #999; font-size: 12px; }
+
+.track-alloc { font-size: 13px; color: #555; margin-bottom: 12px; }
+.alloc-chip { display: inline-block; margin: 2px 8px 2px 0; }
+.alloc-chip b { color: #1890ff; }
+
+.kind { display: inline-block; min-width: 20px; text-align: center; border-radius: 3px;
+  padding: 0 4px; font-weight: 700; }
+.phase-转线 { background: #f0f5ff; }
+.hook-row.hl { background: #fff7e6 !important; }
+
+.yard-section { margin-top: 18px; }
+.stage-nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.step-info { background: #f6f8fa; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;
+  font-size: 14px; }
+.step-code { font-weight: 700; color: #1890ff; font-size: 16px; }
+
+.track-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.track-label { width: 64px; text-align: right; color: #666; font-size: 13px; flex: none; }
+.track-line { display: flex; align-items: center; min-height: 34px; padding: 4px 8px;
+  border-bottom: 2px solid #b7d4f7; border-radius: 2px; background: repeating-linear-gradient(
+  90deg, transparent, transparent 34px, rgba(24,144,255,.06) 34px, rgba(24,144,255,.06) 35px);
+  flex-wrap: wrap; min-width: 60%; }
+.lead-row .track-line { border-bottom: 2px dashed #d9b55c; background: #fffdf3; }
+.car-mini { display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 700; font-size: 13px; width: 26px; height: 26px; border-radius: 3px; margin: 1px; }
+.car-mini.gap { margin-left: 8px; }
+.engine { margin-left: 6px; font-size: 18px; }
+
+/* 调整面板 */
+.move-list { margin: 8px 0 4px 18px; font-size: 14px; color: #333; line-height: 1.9; }
+.xl-table td.cell-moved { background: #fff7e6; outline: 2px solid #faad14; outline-offset: -2px; }
