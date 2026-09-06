@@ -223,10 +223,10 @@
         const stationColor = s => PALETTE[(s - 1) % PALETTE.length];
         const COL_NAME = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 
+        // 辆数下标：1→₁、2→₂…，多位数逐位（如 10→₁₀）。辆数恒标注（含 1）。
+        const SUBDIGITS = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
         function subOf(count) {
-            if (count === 1) return '';
-            const m = { 2:"₂",3:"₃",4:"₄",5:"₅",6:"₆",7:"₇",8:"₈",9:"₉" };
-            return m[count] || '';
+            return String(count).split('').map(d => SUBDIGITS[+d]).join('');
         }
         function tokenText(g) { return g.station + subOf(g.count); }
 
@@ -349,15 +349,34 @@
 
         function renderSchemeDetail() {
             const s = CURRENT_SCHEME, st = s.stats;
+            const P = st.hooks_pull, H = st.hooks_throw, Z = st.hooks_transfer;
+            const homeT = RESULT.meta.home_track;
             document.getElementById('statsBar').innerHTML = `
-                <span class="stat">挂车钩：<strong>${st.hooks_pull}</strong></span>
-                <span class="stat">溜放钩：<strong>${st.hooks_throw}</strong></span>
-                <span class="stat">转线钩：<strong>${st.hooks_transfer}</strong></span>
-                <span class="stat">总钩数：<strong>${st.total_hooks}</strong>（教材口径 ${st.textbook_total}，不含转线）</span>
-                <span class="stat">调车程：<strong>${st.cheng}</strong></span>
-                <span class="stat">使用股道：<strong>${st.tracks_used}</strong> 条</span>`;
-            document.getElementById('trackAlloc').innerHTML =
-                '股道分配：' + s.track_alloc.map(t => `<span class="alloc-chip"><b>${t.track}</b>道 ← ${t.super}</span>`).join('');
+                <div class="stat-row">
+                    <span class="stat">挂车钩：<strong>${P}</strong></span>
+                    <span class="stat">溜放钩：<strong>${H}</strong></span>
+                    <span class="stat">转线钩：<strong>${Z}</strong></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat">总钩数（不含转线）：<strong>${st.textbook_total}</strong>
+                        <span class="hint">（挂车钩数 + 溜放钩数）</span></span>
+                    <span class="stat">调车程：<strong>${st.cheng}</strong>
+                        <span class="hint">（挂车钩数×2 + 溜放钩数×1 + 转线钩数×1
+                        = ${P}×2 + ${H}×1 + ${Z}×1）</span></span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat">含转线总钩数：<strong>${st.total_hooks}</strong></span>
+                    <span class="stat">使用股道：<strong>${st.tracks_used}</strong> 条（含停留道）</span>
+                </div>`;
+            document.getElementById('trackAlloc').innerHTML = `
+                <h4>股道分配</h4>
+                <div class="table-wrapper"><table class="alloc-table">
+                    <thead><tr><th>暂合列</th><th>作业股道</th><th>备注</th></tr></thead>
+                    <tbody>${s.track_alloc.map(a => {
+                        const seat = a.track === homeT ? '坐底（停留道）' : '';
+                        return `<tr><td>${a.super}</td><td><b>${a.track}</b>道</td><td>${seat}</td></tr>`;
+                    }).join('')}</tbody>
+                </table></div>`;
 
             // 钩计划表
             const tbody = s.hooks.map((h, i) => `
@@ -422,11 +441,13 @@
             const maxR = Math.max(1, ...PLAYER.scheme.hooks.map(h => h.phase_round));
             PLAYER.maxRound = maxR;
             document.getElementById('playerCtrl').innerHTML = `
+                <button type="button" class="btn-sm" id="pStart">⏮ 到开始</button>
                 <button type="button" class="btn-sm" id="pPrev">◀ 上一步</button>
                 <button type="button" class="btn-sm" id="pNext">下一步 ▶</button>
                 <button type="button" class="btn-sm" id="pRound">跳到下一轮 ▶▶</button>
                 <button type="button" class="btn-sm" id="pEnd">到结尾 ⏭</button>
                 <span id="pPos" class="hint" style="margin-left:8px"></span>`;
+            document.getElementById('pStart').addEventListener('click', () => { PLAYER.idx = 0; drawStep(); });
             document.getElementById('pPrev').addEventListener('click', () => { if (PLAYER.idx > 0) { PLAYER.idx--; drawStep(); } });
             document.getElementById('pNext').addEventListener('click', () => { if (PLAYER.idx < PLAYER.states.length - 1) { PLAYER.idx++; drawStep(); } });
             document.getElementById('pEnd').addEventListener('click', () => { PLAYER.idx = PLAYER.states.length - 1; drawStep(); });
@@ -485,14 +506,39 @@
                 `<div class="track-line">${carChipsHTML(cars)}</div></div>`;
         }
 
+        // 车辆图形：每辆车 = 高的一半宽（窄竖矩形），同车组相邻无间隙；
+        // 1 辆车组 → 竖长方形，2 辆 → 正方形，…，整组一个 4 圆角图形；调车只改顺序不改形状。
+        const CAR_H = 40;            // 车高（px）
+        const CAR_W = CAR_H / 2;     // 单车宽 = 高的一半
+        const GRP_GAP = 5;           // 相邻车组间距
+
+        // 按底色亮度取文字色（浅底深字、深底白字）
+        function fgColor(hex) {
+            const h = hex.replace('#', '');
+            const n = parseInt(h, 16);
+            const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+            const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return lum > 0.62 ? '#1a1a1a' : '#ffffff';
+        }
+
+        // 把一列"逐辆"的车按车组(gid)切成连续块，画成"组"为单位的有圆角图形
         function carChipsHTML(cars) {
-            let html = '';
-            for (let i = 0; i < cars.length; i++) {
-                const c = cars[i];
-                const brk = (i > 0 && cars[i - 1].gid !== c.gid) ? ' class="gap"' : '';
-                html += `<span${brk} class="car-mini" style="background:${stationColor(c.station)}" title="去向 ${c.station}">${c.station}</span>`;
+            if (!cars.length) return '';
+            const runs = [];
+            for (const c of cars) {
+                const last = runs[runs.length - 1];
+                if (last && last.gid === c.gid) { last.count++; }
+                else { runs.push({ gid: c.gid, station: c.station, count: 1 }); }
             }
-            return html;
+            return runs.map(run => {
+                const color = stationColor(run.station);
+                const w = CAR_W * run.count;
+                // 组内每辆车一个小格、各写一个去向号；同组无间隙、外轮廓整组 4 圆角
+                const cells = Array.from({ length: run.count }, (_, i) =>
+                    `<span${i ? ' class="cell"' : ''}>${run.station}</span>`).join('');
+                return `<span class="wagon" style="width:${w}px;height:${CAR_H}px;background:${color};color:${fgColor(color)}"
+                        title="去向 ${run.station} · ${run.count} 辆">${cells}</span>`;
+            }).join('');
         }
     </script>
 </body>

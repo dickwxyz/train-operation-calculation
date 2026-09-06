@@ -73,8 +73,13 @@ def schedule(groups: List[Group],
     total = y.total
     rnd = [0]
 
-    def nxt() -> int:
+    def begin_round() -> int:
+        """新开一轮：在每次挂车钩（股道牵出）/ 转线钩时 +1。"""
         rnd[0] += 1
+        return rnd[0]
+
+    def cur_round() -> int:
+        """当前轮号：本轮内的溜放钩沿用（牵出与其溜放同轮）。"""
         return rnd[0]
 
     def gid_pos_of(car: Car) -> int:
@@ -92,7 +97,7 @@ def schedule(groups: List[Group],
         if keep >= len(home_cars):
             res.err = "待编车列全部属 home 超列"
             return res
-        y.pull_part(home, keep, nxt())
+        y.pull_part(home, keep, begin_round())
 
         # ================= R1 溜放 =================
         lead = y.state.lead
@@ -114,7 +119,7 @@ def schedule(groups: List[Group],
                 j += 1
             # 同目标连续段（按辆数）合一钩
             n = j - i
-            y.throw(tgt, n, rnd[0], f"溜放({tgt})")
+            y.throw(tgt, n, cur_round(), f"溜放({tgt})")
             i = j
 
         # ================= R2 拆分（dirty 超列 -> 最终宿主） =================
@@ -147,7 +152,7 @@ def schedule(groups: List[Group],
                 continue
             n_pull = len(content)
             # 整列牵出
-            y.pull_all(tgt_track, nxt(), f"拆分牵出({tgt_track})")
+            y.pull_all(tgt_track, begin_round(), f"拆分牵出({tgt_track})")
             # ---- 最终宿主预计算（对全局 messy 列一次性算好） ----
             final_super: Dict[int, int] = {}
             all_cols_in_messy = set()
@@ -190,7 +195,7 @@ def schedule(groups: List[Group],
                 while j < need and pos_to_super[y.state.lead[j].gid] == sup \
                         and _host_of_gid(y.state.lead[j].gid) == ht:
                     j += 1
-                y.throw(ht, j, nxt(), f"归块溜放({ht})")
+                y.throw(ht, j, cur_round(), f"归块溜放({ht})")
                 need -= j
             done_messy.add(sup)
             rr += 1
@@ -206,9 +211,9 @@ def schedule(groups: List[Group],
                        key=lambda t: (-max(c.station for c in y.state.tracks[t]),
                                       -min(c.station for c in y.state.tracks[t])))
         for t in order:
-            y.pull_all(t, nxt(), "连挂")
-        # 转线
-        y.transfer(depart, nxt())
+            y.pull_all(t, begin_round(), "连挂")
+        # 转线（新开一轮）
+        y.transfer(depart, begin_round())
         y.check()
 
         if not y.is_sorted():
