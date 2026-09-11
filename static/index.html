@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>调车作业计划智能体</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
@@ -24,13 +24,21 @@
                     <button type="button" class="btn-sm preset" data-preset="例4.4">例4.4</button>
                     <button type="button" class="btn-sm preset" data-preset="例4.6">例4.6</button>
                     <span class="preset-label" style="margin-left:12px">习题：</span>
-                    <button type="button" class="btn-sm preset" data-preset="习题2">习题2</button>
-                    <button type="button" class="btn-sm preset" data-preset="习题3">习题3</button>
-                    <button type="button" class="btn-sm preset" data-preset="习题7">习题7</button>
-                    <button type="button" class="btn-sm preset" data-preset="习题8">习题8</button>
-                    <button type="button" class="btn-sm preset" data-preset="习题9">习题9</button>
-                    <button type="button" class="btn-sm preset" data-preset="习题12">习题12</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题2" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题2</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题3" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题3</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题7" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题7</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题8" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题8</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题9" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题9</button>
+                    <button type="button" class="btn-sm preset" data-preset="习题12" disabled
+                            title="习题已锁定：先独立完成，课上统一讲解">习题12</button>
                 </div>
+
+                <p class="hint" id="modeHint" style="display:none"></p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -138,6 +146,24 @@
                 solve();
             });
         });
+
+        // 习题按钮：HTML 里已写死 disabled（即使脚本报错、接口不通也是灰的，fail-closed）。
+        // 只有服务端明确回报解锁态（MODE="full"）才放开；真正的闸门在服务端 /api/solve。
+        const exerciseBtns = Array.from(document.querySelectorAll('.preset'))
+            .filter(b => (b.dataset.preset || '').startsWith('习题'));
+        fetch('/api/mode').then(r => r.json()).then(m => {
+            if (!m) return;
+            if (m.example_only) {                            // 锁定版：提示只开放例题
+                const hint = document.getElementById('modeHint');
+                hint.textContent = '教学版仅开放 ' +
+                    (m.allowed_examples || ['例题']).join(' / ') +
+                    '；习题与自编数据不提供求解。';
+                hint.style.display = 'block';
+            }
+            if (m.exercise_locked === false) {               // 解锁版才放开按钮
+                exerciseBtns.forEach(b => { b.disabled = false; b.title = ''; });
+            }
+        }).catch(() => { /* 降级 = 保持置灰 */ });
 
         document.getElementById('solveBtn').addEventListener('click', solve);
 

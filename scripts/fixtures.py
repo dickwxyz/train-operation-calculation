@@ -12,6 +12,9 @@
        例4.4  不暂合（调整后=原始列）→ (6推,7溜)                          [教材 6推7溜]
 自洽断言：
   4. 习题 2 / 7 / 8 / 9 / 12 在默认股道数下均有可行方案且最终编成严格非降。
+  5. 例题白名单闸门（scripts.mode）：锁定版**只放行 3 个例题**；规范形对"站号重命名 /
+     车组改写 / 书写格式"均不变，故 6 个习题的原题与各种变形一律被拒（含用户实测报出
+     的「原题+站序7654321」「展开式」两条绕过）；前端 index.html 的 PRESETS 与白名单不漂移。
 注意：例4.4 三列合并（二·四·五）与习题3（3 线预算）在当前调度引擎下仍无可行方案，不在此固件断言。
 """
 
@@ -103,6 +106,109 @@ def run() -> None:
             f = b["final_formation"]
             ok = all(f[i] <= f[i + 1] for i in range(len(f) - 1))
         check(f"{name} 有可行方案且终列非降", ok)
+
+    print("== 5) 例题白名单闸门（scripts.mode） ==")
+    import pathlib
+    import re
+    from . import mode
+
+    def _groups(name):
+        p = parser.PRESETS[name]
+        return parser.parse_seq(p["seq"], p.get("station_order") or None)
+
+    def _variants(groups):
+        """同一题在 parser 支持的各写法下的等价串（由已解析车组生成，杜绝手抄出错）。"""
+        gs = list(groups)
+        out = {
+            "下标原样": parser.groups_to_text(gs),
+            "下划线空格": " ".join(f"{g.station}_{g.count}" for g in gs),
+            "下划线逗号": ",".join(f"{g.station}_{g.count}" for g in gs),
+            "逐辆展开": " ".join(str(g.station) for g in gs for _ in range(g.count)),
+        }
+        if all(g.count == 1 for g in gs):
+            out["纯数字串"] = "".join(str(g.station) for g in gs)
+        return out
+
+    def _relabel_digits(groups):
+        """把逐辆去向整体重命名（s → max+1-s）后写成纯数字串。
+
+        模拟学生"改站号 / 改站序"的变形 —— 规范形对此应当不变。
+        """
+        cars = [g.station for g in groups for _ in range(g.count)]
+        top = max(cars)
+        if top > 9:                     # 纯数字串在多位数下会歧义，跳过
+            return None
+        return "".join(str(top + 1 - s) for s in cars)
+
+    check("出厂默认锁定（fail-closed）", mode.LOCKED is True, f"MODE={mode.MODE}")
+    check("预设点名均存在", mode.MISSING_PRESETS == [], str(mode.MISSING_PRESETS))
+
+    print("  -- 规范形对「站号重命名 / 车组改写」不变 --")
+    for name in mode.LOCKED_EXERCISES:
+        g = _groups(name)
+        base = mode.canonical(g)
+        for label, text in _variants(g).items():
+            check(f"{name} {label} 规范形不变",
+                  mode.canonical(parser.parse_seq(text, None)) == base)
+        rel = _relabel_digits(g)
+        if rel:
+            check(f"{name} 站号重命名 规范形不变",
+                  mode.canonical(parser.parse_seq(rel)) == base)
+
+    print("  -- 锁定版：例题放行 --")
+    for name in mode.ALLOWED_EXAMPLES:
+        g = _groups(name)
+        check(f"{name} 原样放行", mode.is_allowed(g))
+        for label, text in _variants(g).items():
+            check(f"{name} {label}放行", mode.is_allowed(parser.parse_seq(text, None)))
+        rel = _relabel_digits(g)
+        if rel:
+            check(f"{name} 站号重命名放行", mode.is_allowed(parser.parse_seq(rel)))
+
+    print("  -- 锁定版：习题一律拒绝（含全部变形）--")
+    for name in mode.LOCKED_EXERCISES:
+        g = _groups(name)
+        check(f"{name} 原样拒绝", not mode.is_allowed(g))
+        for label, text in _variants(g).items():
+            check(f"{name} {label}拒绝", not mode.is_allowed(parser.parse_seq(text, None)))
+        rel = _relabel_digits(g)
+        if rel:
+            check(f"{name} 站号重命名拒绝", not mode.is_allowed(parser.parse_seq(rel)))
+
+    # 用户实测报出的三条绕过，固化为回归
+    check("回归：习题2 原题 + 站序7654321 被拒",
+          not mode.is_allowed(parser.parse_seq("1₃4₁6₁5₃1₂4₁3₁2₂6₂7₃", "7654321")))
+    check("回归：习题2 展开式被拒",
+          not mode.is_allowed(parser.parse_seq("1114655511432266777")))
+    check("回归：习题2 展开式 + 站序7654321 被拒",
+          not mode.is_allowed(parser.parse_seq("1114655511432266777", "7654321")))
+
+    # 白名单的既定代价：学生自编数据也被拒（旧版这条是"放行"，已反转）
+    check("学生自编数据被拒（白名单既定代价）",
+          not mode.is_allowed(parser.parse_seq("4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₁")))
+
+    # 解锁态（教师演示版）放行一切
+    check("解锁态（locked=False）放行一切",
+          mode.is_allowed(_groups("习题2"), locked=False)
+          and mode.is_allowed(parser.parse_seq("4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₁"),
+                              locked=False))
+
+    # 结构自洽：6 个习题规范形互不相同，且不与任何例题撞车
+    ex_keys = [mode.canonical(_groups(n)) for n in mode.LOCKED_EXERCISES]
+    check("6 个习题规范形互不相同", len(set(ex_keys)) == len(ex_keys))
+    check("习题规范形不与任何例题撞车",
+          not (set(ex_keys) & {mode.canonical(_groups(n)) for n in mode.ALLOWED_EXAMPLES}))
+
+    # 前端 PRESETS 防漂移：index.html 里习题按钮会填进去的那串，必须不在白名单
+    html = (pathlib.Path(__file__).resolve().parent.parent
+            / "static" / "index.html").read_text(encoding="utf-8")
+    found = re.findall(
+        r'"(习题\d+)":\s*\{\s*seq:\s*"([^"]+)",\s*station_order:\s*"([^"]*)"', html)
+    check("前端 PRESETS 抓取到 6 个习题（正则失效会在此暴露）", len(found) == 6,
+          f"抓到 {len(found)} 条")
+    for nm, seq, so in found:
+        check(f"前端 {nm} 不在白名单（防前后端漂移）",
+              not mode.is_allowed(parser.parse_seq(seq, so or None)))
 
     print()
     if FAIL:

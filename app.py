@@ -2,6 +2,7 @@ import traceback
 from flask import Flask, request, jsonify
 from scripts.shunting_plan import ShuntingPlan
 from scripts import parser as seq_parser
+from scripts import mode as appmode
 from rag import qa
 
 app = Flask(__name__)
@@ -15,6 +16,13 @@ def index():
 @app.route("/qa")
 def qa_page():
     return app.send_static_file("qa.html")
+
+
+@app.route("/style.css")
+def style_css():
+    """页面用相对路径引用样式（托管平台把 static/ 当作站点根时才能解析）；
+    本地 Flask 下 / 与 /qa 的相对路径都会落到 /style.css，这里补一条映射。"""
+    return app.send_static_file("style.css")
 
 
 @app.route("/api/solve", methods=["POST"])
@@ -42,6 +50,11 @@ def solve():
             return jsonify({"error": "待编车列为空"}), 400
         # 解析校验（抛出 ParseError → 400）
         groups = seq_parser.parse_seq(seq, station_order)
+        # 教学锁定：白名单——只放行例题。判定用「站号重命名 + 车组改写均不变」的规范形，
+        # 因此习题原题、各种变形、自编数据都进不来。闸门只在此 HTTP 边界，
+        # 库层 planner/ShuntingPlan 不受影响。
+        if appmode.LOCKED and not appmode.is_allowed(groups):
+            return jsonify({"error": appmode.reject_message(groups)}), 403
         if sum(g.count for g in groups) < 2:
             return jsonify({"error": "待编车辆至少 2 辆"}), 400
 
@@ -82,6 +95,14 @@ def solve():
         return jsonify({"error": f"服务器内部错误: {str(e)}"}), 500
 
 
+@app.route("/api/mode")
+def api_mode():
+    """当前运行模式，供前端决定习题按钮是否放开（接口不可达时前端按锁定降级）。"""
+    resp = jsonify(appmode.mode_payload())
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/api/qa", methods=["POST"])
 def api_qa():
     """教材问答：检索相关片段 + DeepSeek 生成回答（未配置 key 时降级为仅返回原文）"""
@@ -104,4 +125,10 @@ def api_qa():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=50000, debug=True, threaded=True)
+    import os
+    # 托管平台（如 PocketBay）通过 PORT 注入端口；本地默认仍为 50000。
+    port = int(os.environ.get("PORT", 50000))
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    print(f"[mode] 教学闸门：{'锁定（只放行例题）' if appmode.LOCKED else '关闭（完整版）'}"
+          f"（MODE={appmode.MODE}）")
+    app.run(host="0.0.0.0", port=port, debug=debug, threaded=True)
