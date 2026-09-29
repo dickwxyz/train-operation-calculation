@@ -52,7 +52,7 @@ venv/bin/python app.py
 `stats = {hooks_pull, hooks_throw, hooks_transfer, total_hooks, textbook_total, cheng, weighted, tracks_used}`；
 每钩 `hooks[j] = {seq, code, op, track, qty, kind(挂/溜/转), phase_round, note, cars, state}`，`state={tracks, lead}` 为该钩后全场（前端直接渲染，零再推导）。
 **前后端输入校验各一份**（`app.py` 与 `static/index.html` 的 `validateInput`/`buildPayload` 镜像），改输入规则需两处同步。
-锁定版下，**非例题**输入在解析后被 `scripts/mode.py` 的白名单闸门拦下，返回 **403**（见「教学版锁定」）。
+`MODE="locked"` 时，**非例题**输入在解析后被 `scripts/mode.py` 的白名单闸门拦下，返回 **403**（见「教学版锁定」）；**当前 `MODE="full"`，闸门不生效**——习题与自编数据都能求解。
 
 ### `GET /api/mode`
 
@@ -85,18 +85,21 @@ venv/bin/python app.py
 
 ### 教学版锁定（例题白名单，开发时定死）
 
+> **当前 `MODE = "full"`（2026-09 放开）**：作业一收齐后，6 个习题按钮已在页面上可点、答案可算。
+> 闸门代码原样保留，改回 `"locked"` 重新打包即恢复课堂锁定。下面描述的是**锁定态**的行为。
+
 课上先讲 3 个例题，6 个习题（习题2/3/7/8/9/12）留给学生自己做。锁定**在开发时定死**，学生端无法更改：
 
-- **开关**：`scripts/mode.py` 顶部 `MODE = "locked" | "full"`（**默认 `locked`，fail-closed**）。切换＝改常量 + 重新打包上传；启动时日志打印当前状态。
+- **开关**：`scripts/mode.py` 顶部 `MODE = "locked" | "full"`。切换＝改常量 + 重新打包上传；启动时日志打印当前状态。
 - **白名单**：锁定版**只放行 3 个例题**（`ALLOWED_EXAMPLES`，由 `parser.PRESETS` 派生），其余输入一律 403。
 - **判定用规范形** `mode.canonical(groups)`：逐辆去向 → **首次出现次序**。它对三种变形都不变，所以绕不开：
   - **站号重命名**（任意 `station_order`，如 `7654321`）—— 早先按 `(去向, 辆数)` 比对时会漏，用户实测可绕过；
   - **车组边界改写**（`1₃` ↔ `1 1 1`）；
   - **书写格式**（下标 / `4_2` / 空格 / 逗号；`parse_seq` 已先归一）。
 - **闸门在服务端**：`app.py` 的 `/api/solve` 在 `parse_seq` 之后判 `mode.is_allowed(groups)`。前端置灰只是观感层——改 JS 或直调 API 一样被拦。
-- **前端**：6 个习题按钮在 HTML 里写死 `disabled`（脚本报错、接口不通时仍是灰的）；另按 `/api/mode` 的 `example_only` 在输入区显示"仅开放例题"提示。
+- **前端**：6 个习题按钮在 HTML 里写死 `disabled`（脚本报错、接口不通时仍是灰的，fail-closed）；`/api/mode` 回报 `exercise_locked: false`（即 `MODE="full"`）时前端解除置灰并清空锁定 title，锁定态则按 `example_only` 在输入区显示"仅开放例题"提示。
 - **代价**：锁定版下**任何非例题输入都会被拒**——学生无法用自编数据练习，课堂变式也做不了。这是刻意取舍：黑名单要追着学生的变形跑，白名单只需认死例题。
-- `fixtures.run()` 第 5 节即闸门回归，含**前端 `index.html` PRESETS 防漂移**断言（前后端题干不一致会 FAIL）。
+- `fixtures.run()` 第 5 节即闸门回归，**断言一律显式传 `locked=True`**，因此与出厂 `MODE` 无关——`"full"` 下机制仍被守着，改回 `"locked"` 即生效。含**前端 `index.html` PRESETS 防漂移**断言（前后端题干不一致会 FAIL）与 `mode_payload` ↔ `MODE` 自洽断言。
 - **新增任何暴露求解能力的 HTTP 入口，都必须过 `mode.is_allowed()`。**
 
 ### 算法流程（改动前先读 `knowledge_base/调车工作/调车工作-算例集.md`）
@@ -111,7 +114,7 @@ venv/bin/python app.py
 
 ## 已知问题 / 限制
 
-- **闸门只挡 `/api/solve`**：`/api/qa`（RAG 修复后）目前不过闸——若语料将来含习题答案，需一并接入 `mode.is_allowed()`。前端 JS 与 `index.html` 里仍有 6 个习题的**原题**（`view-source:` 可见），那是教材上的题面、不是答案，属可接受；答案从未下发到前端（拦截发生在 `jsonify(result)` 之前）。
+- **闸门只挡 `/api/solve`**：`/api/qa`（RAG 修复后）目前不过闸——若语料将来含习题答案，需一并接入 `mode.is_allowed()`。前端 JS 与 `index.html` 里仍有 6 个习题的**原题**（`view-source:` 可见），那是教材上的题面、不是答案，属可接受；答案从未下发到前端（拦截发生在 `jsonify(result)` 之前）。当前 `MODE="full"`，闸门本就未生效。
 - 例4.4 **三列合并（二·四·五）**与**习题3（最多 3 条线）**：当前调度引擎对"三列暂合/极紧预算"仍无可行方案（页面提示无可行方案）。
 - 自动调整只做单对边界邻组；非教材算例钩数为引擎实测（正确可运行），未必等于某人工最优。
 - **RAG 语料路径失效**：`rag/corpus.py` 的 `SOURCES` 指向 `assets/…/*.md`（不存在）。需要时改指实际 md（第四章 `knowledge_base/调车工作/铁路行车组织第2版-调车工作.md`；第十一章 `过程/…/…md`）。

@@ -12,9 +12,10 @@
        例4.4  不暂合（调整后=原始列）→ (6推,7溜)                          [教材 6推7溜]
 自洽断言：
   4. 习题 2 / 7 / 8 / 9 / 12 在默认股道数下均有可行方案且最终编成严格非降。
-  5. 例题白名单闸门（scripts.mode）：锁定版**只放行 3 个例题**；规范形对"站号重命名 /
-     车组改写 / 书写格式"均不变，故 6 个习题的原题与各种变形一律被拒（含用户实测报出
-     的「原题+站序7654321」「展开式」两条绕过）；前端 index.html 的 PRESETS 与白名单不漂移。
+  5. 例题白名单闸门（scripts.mode）：**锁定态下**（显式 locked=True，与当前出厂 MODE 无关）
+     只放行 3 个例题；规范形对"站号重命名 / 车组改写 / 书写格式"均不变，故 6 个习题的原题与
+     各种变形一律被拒（含用户实测报出的「原题+站序7654321」「展开式」两条绕过）；
+     前端 index.html 的 PRESETS 与白名单不漂移；mode_payload 与 MODE 自洽。
 注意：例4.4 三列合并（二·四·五）与习题3（3 线预算）在当前调度引擎下仍无可行方案，不在此固件断言。
 """
 
@@ -140,8 +141,20 @@ def run() -> None:
             return None
         return "".join(str(top + 1 - s) for s in cars)
 
-    check("出厂默认锁定（fail-closed）", mode.LOCKED is True, f"MODE={mode.MODE}")
+    check("MODE 与 LOCKED 自洽", mode.LOCKED == (mode.MODE == "locked"),
+          f"MODE={mode.MODE}")
+    # 本节以下断言一律**显式传 locked=True**，验证的是闸门机制本身，与当前出厂 MODE 无关：
+    # 出厂 MODE="full" 时机制仍需完好，改回 "locked" 打包即生效。
     check("预设点名均存在", mode.MISSING_PRESETS == [], str(mode.MISSING_PRESETS))
+
+    # 前端靠 /api/mode 决定习题按钮是否置灰：payload 必须与 MODE 一致
+    # （改了 mode.py 忘了同步此处会暴露；MODE="full" 时前端才会解除置灰）
+    payload = mode.mode_payload()
+    check("mode_payload 与 MODE 一致",
+          payload["mode"] == mode.MODE
+          and payload["exercise_locked"] == mode.LOCKED
+          and payload["example_only"] == mode.LOCKED,
+          str(payload))
 
     print("  -- 规范形对「站号重命名 / 车组改写」不变 --")
     for name in mode.LOCKED_EXERCISES:
@@ -155,39 +168,46 @@ def run() -> None:
             check(f"{name} 站号重命名 规范形不变",
                   mode.canonical(parser.parse_seq(rel)) == base)
 
-    print("  -- 锁定版：例题放行 --")
+    print("  -- 锁定态：例题放行 --")
     for name in mode.ALLOWED_EXAMPLES:
         g = _groups(name)
-        check(f"{name} 原样放行", mode.is_allowed(g))
+        check(f"{name} 原样放行", mode.is_allowed(g, locked=True))
         for label, text in _variants(g).items():
-            check(f"{name} {label}放行", mode.is_allowed(parser.parse_seq(text, None)))
+            check(f"{name} {label}放行",
+                  mode.is_allowed(parser.parse_seq(text, None), locked=True))
         rel = _relabel_digits(g)
         if rel:
-            check(f"{name} 站号重命名放行", mode.is_allowed(parser.parse_seq(rel)))
+            check(f"{name} 站号重命名放行",
+                  mode.is_allowed(parser.parse_seq(rel), locked=True))
 
-    print("  -- 锁定版：习题一律拒绝（含全部变形）--")
+    print("  -- 锁定态：习题一律拒绝（含全部变形）--")
     for name in mode.LOCKED_EXERCISES:
         g = _groups(name)
-        check(f"{name} 原样拒绝", not mode.is_allowed(g))
+        check(f"{name} 原样拒绝", not mode.is_allowed(g, locked=True))
         for label, text in _variants(g).items():
-            check(f"{name} {label}拒绝", not mode.is_allowed(parser.parse_seq(text, None)))
+            check(f"{name} {label}拒绝",
+                  not mode.is_allowed(parser.parse_seq(text, None), locked=True))
         rel = _relabel_digits(g)
         if rel:
-            check(f"{name} 站号重命名拒绝", not mode.is_allowed(parser.parse_seq(rel)))
+            check(f"{name} 站号重命名拒绝",
+                  not mode.is_allowed(parser.parse_seq(rel), locked=True))
 
     # 用户实测报出的三条绕过，固化为回归
     check("回归：习题2 原题 + 站序7654321 被拒",
-          not mode.is_allowed(parser.parse_seq("1₃4₁6₁5₃1₂4₁3₁2₂6₂7₃", "7654321")))
+          not mode.is_allowed(parser.parse_seq("1₃4₁6₁5₃1₂4₁3₁2₂6₂7₃", "7654321"),
+                              locked=True))
     check("回归：习题2 展开式被拒",
-          not mode.is_allowed(parser.parse_seq("1114655511432266777")))
+          not mode.is_allowed(parser.parse_seq("1114655511432266777"), locked=True))
     check("回归：习题2 展开式 + 站序7654321 被拒",
-          not mode.is_allowed(parser.parse_seq("1114655511432266777", "7654321")))
+          not mode.is_allowed(parser.parse_seq("1114655511432266777", "7654321"),
+                              locked=True))
 
     # 白名单的既定代价：学生自编数据也被拒（旧版这条是"放行"，已反转）
     check("学生自编数据被拒（白名单既定代价）",
-          not mode.is_allowed(parser.parse_seq("4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₁")))
+          not mode.is_allowed(parser.parse_seq("4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₁"),
+                              locked=True))
 
-    # 解锁态（教师演示版）放行一切
+    # 解锁态（MODE="full" / 教师演示版）放行一切
     check("解锁态（locked=False）放行一切",
           mode.is_allowed(_groups("习题2"), locked=False)
           and mode.is_allowed(parser.parse_seq("4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₁"),
@@ -200,6 +220,7 @@ def run() -> None:
           not (set(ex_keys) & {mode.canonical(_groups(n)) for n in mode.ALLOWED_EXAMPLES}))
 
     # 前端 PRESETS 防漂移：index.html 里习题按钮会填进去的那串，必须不在白名单
+    # （锁定态下判定 —— 保证改回 MODE="locked" 时白名单没被悄悄塞进习题）
     html = (pathlib.Path(__file__).resolve().parent.parent
             / "static" / "index.html").read_text(encoding="utf-8")
     found = re.findall(
@@ -208,7 +229,7 @@ def run() -> None:
           f"抓到 {len(found)} 条")
     for nm, seq, so in found:
         check(f"前端 {nm} 不在白名单（防前后端漂移）",
-              not mode.is_allowed(parser.parse_seq(seq, so or None)))
+              not mode.is_allowed(parser.parse_seq(seq, so or None), locked=True))
 
     print()
     if FAIL:
