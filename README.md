@@ -9,6 +9,7 @@
 - **内置算例**：例题 4.3/4.4/4.6 与习题 2/3/7/8/9/12 均可一键填充、直接求解（当前 `MODE="full"`）。
 - **教学版锁定（例题白名单，开发时定死）**：`scripts/mode.py` 顶部 `MODE = "locked"` 时，服务端**只放行 3 个例题**，其余输入（习题原题、各种变形、自编数据）一律 403，习题按钮置灰。**当前为 `"full"`（2026-09 作业一收齐后放开）**；改回 `"locked"` 重新打包即恢复锁定。切换需改代码重传，学生端解不开——详见「教学版锁定」。
 - **教材问答（`/qa`）**：概念问答页保留（**注意**：检索语料路径暂失效，见「已知限制」）。
+- **编组计划算例（`/bianzu`）**：第十一章「技术站列车编组计划」演示页——例 11.3/11.5/11.6 与习题 1/2/3，含绝对计算法/表格计算法表格、列车到达站图、最优方案与目标函数值（静态页，数据由 `scripts/编组方案svg绘图/build_bianzu_page.py` 生成）。
 - 纯 Python 算法核心零第三方依赖（Flask 服务仅依赖 `flask`/可选 `jieba`）。
 
 ## 快速开始
@@ -88,7 +89,7 @@ venv/bin/python app.py          # 监听 0.0.0.0:50000
 ## 项目结构
 
 ```
-app.py                     # Flask 入口（/、/qa、/api/solve、/api/qa）
+app.py                     # Flask 入口（/、/qa、/bianzu、/svg/bianzu、/api/solve、/api/qa）
 scripts/                   # 调车表法算法（纯 Python，无 Flask、无第三方）
   parser.py                 #   宽容解析待编序列（下标/数字/字母+站序）
   model.py                  #   数据类；堆序约定见下
@@ -98,8 +99,9 @@ scripts/                   # 调车表法算法（纯 Python，无 Flask、无�
   planner.py                #   总装：枚举暂合 → 股道分配 → 引擎调度 → 择优
   shunting_plan.py          #   ShuntingPlan 门面（app.py 引用入口）
   fixtures.py               #   验收固件（无 pytest）
+  编组方案svg绘图/            #   第十一章算例绘图与 bianzu.html 生成（build_bianzu_page.py）
 rag/                       # 教材问答后端（语料路径暂失效，见下）
-static/                    # 前端：index.html(求解页)、qa.html(问答页)、style.css（原生 JS，无模板目录）
+static/                    # 前端：index.html(求解页)、qa.html(问答页)、bianzu.html(编组算例)、svg/bianzu/(到达站图)、style.css
 knowledge_base/调车工作/     # 教材知识库（第四章提炼/术语表/算例集/原文 md，含 images/）
 assets/                    # 教材原始 PDF（版权，未纳入版本控制）
 过程/                      # 开发对话实录与第十一章原文 md（gitignored）

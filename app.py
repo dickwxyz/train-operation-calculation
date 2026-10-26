@@ -1,3 +1,4 @@
+import os
 import traceback
 from flask import Flask, request, jsonify
 from scripts.shunting_plan import ShuntingPlan
@@ -16,6 +17,18 @@ def index():
 @app.route("/qa")
 def qa_page():
     return app.send_static_file("qa.html")
+
+
+@app.route("/bianzu")
+def bianzu_page():
+    """技术站列车编组计划算例演示页（静态生成）。"""
+    return app.send_static_file("bianzu.html")
+
+
+@app.route("/svg/bianzu/<path:filename>")
+def bianzu_svg(filename):
+    """bianzu.html 用相对路径引用到达站图；与 /style.css 同理补一条映射。"""
+    return app.send_static_file(os.path.join("svg", "bianzu", filename))
 
 
 @app.route("/style.css")

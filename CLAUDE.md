@@ -66,13 +66,13 @@ venv/bin/python app.py
 
 ### 代码分层
 
-- `app.py` — Flask 入口，`send_static_file` 分发 `/` 与 `/qa`（**无 `templates/`**）；`/api/solve` 校验后调 `scripts.shunting_plan.ShuntingPlan`。
+- `app.py` — Flask 入口，`send_static_file` 分发 `/`、`/qa`、`/bianzu`（及 `/svg/bianzu/*`）（**无 `templates/`**）；`/api/solve` 校验后调 `scripts.shunting_plan.ShuntingPlan`。
 - `scripts/`（纯 Python、零第三方、单向依赖）：
   - `parser.py` → `model.py` → `xialuo.py`（下落）→ `tiaozheng.py`（邻组化调整）→ `engine.py`（逐钩物理模拟+快照）→ `planner.py`（枚举暂合/股道分配/调度/择优）→ `shunting_plan.py`（门面）。
   - `fixtures.py` 依赖全部，仅测试。
   - `simulator.py` 提供 engine 使用的基础原语（`pull_part`/`pull_all`/`throw`/`transfer` + 状态快照）。
   - `mode.py` — 运行模式与**例题白名单闸门**（纯 Python），只被 `app.py` 调用；库层刻意不设闸（教师本地验算与 fixtures 回归不受影响）。见「教学版锁定」。
-- `static/` — `index.html` 求解页、`qa.html` 问答页、`style.css`。
+- `static/` — `index.html` 求解页、`qa.html` 问答页、`bianzu.html` 编组算例页（生成产物）、`svg/bianzu/` 到达站图、`style.css`。
 - `rag/` — 问答后端（corpus/tokenizer/retriever/llm/config/qa），语料路径失效，暂不维护。
 - `knowledge_base/调车工作/` — 教材第四章结构化提炼（提炼/术语表/算例集/原文 md/images）。
 - `assets/` — 教材 PDF（版权，gitignore 未跟踪）。`过程/`（gitignored）— 开发实录与第十一章原文 md。
