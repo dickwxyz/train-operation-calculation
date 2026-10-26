@@ -315,6 +315,39 @@ SCHEMES = [
         {"row": 2, "from": 2, "to": 3, "terms": ("21", "41", "31")},  # 2→1
         {"row": 2, "from": 3, "to": 4, "terms": ("10",)},        # 1→0
     ]},
+    # 习题2 初始方案（5 站）
+    {"name": "xt2_init", "row_gap": 80, "x0": 80, "stations": "auto", "lines": [
+        {"row": 0, "from": 0, "to": 4, "terms": ("40",)},        # 4→0
+        {"row": 1, "from": 0, "to": 3, "terms": ("41",)},        # 4→1
+        {"row": 2, "from": 0, "to": 2, "terms": ("42",)},        # 4→2
+        {"row": 3, "from": 1, "to": 4, "terms": ("30",)},        # 3→0
+        {"row": 4, "from": 2, "to": 4, "terms": ("20",)},        # 2→0
+        {"row": 5, "from": 0, "to": 1, "terms": ("43",)},        # 4→3
+        {"row": 5, "from": 1, "to": 2, "terms": ("32", "31")},   # 3→2
+        {"row": 5, "from": 2, "to": 3, "terms": ("21", "31")},   # 2→1
+        {"row": 5, "from": 3, "to": 4, "terms": ("10",)},        # 1→0
+    ]},
+    # 习题3 初始方案（5 站）
+    {"name": "xt3_init", "row_gap": 80, "x0": 80, "stations": "auto", "lines": [
+        {"row": 0, "from": 0, "to": 2, "terms": ("42", "41")},   # 4→2
+        {"row": 1, "from": 0, "to": 4, "terms": ("40",)},        # 4→0
+        {"row": 2, "from": 1, "to": 4, "terms": ("30",)},        # 3→0
+        {"row": 3, "from": 2, "to": 4, "terms": ("20",)},        # 2→0
+        {"row": 4, "from": 0, "to": 1, "terms": ("43",)},        # 4→3
+        {"row": 4, "from": 1, "to": 2, "terms": ("32", "31")},   # 3→2
+        {"row": 4, "from": 2, "to": 3, "terms": ("21", "31")},   # 2→1
+        {"row": 4, "from": 3, "to": 4, "terms": ("10",)},        # 1→0
+    ]},
+    # 习题3 调整方案 1（5 站）
+    {"name": "xt3_s1", "row_gap": 80, "x0": 80, "stations": "auto", "lines": [
+        {"row": 0, "from": 0, "to": 2, "terms": ("40", "41", "42")},  # 4→2
+        {"row": 1, "from": 1, "to": 4, "terms": ("30",)},        # 3→0
+        {"row": 2, "from": 2, "to": 4, "terms": ("20", "40")},   # 2→0
+        {"row": 3, "from": 0, "to": 1, "terms": ("43",)},        # 4→3
+        {"row": 3, "from": 1, "to": 2, "terms": ("32", "31")},   # 3→2
+        {"row": 3, "from": 2, "to": 3, "terms": ("21", "41", "31")},  # 2→1
+        {"row": 3, "from": 3, "to": 4, "terms": ("10",)},        # 1→0
+    ]},
 ]
 
 

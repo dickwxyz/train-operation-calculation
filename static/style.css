@@ -34,6 +34,49 @@ header h1 {
     margin-top: 4px;
 }
 
+/* ===== 三页统一顶部：标题 + 标签页 ===== */
+.site-header {
+    padding: 28px 0 18px;
+    text-align: center;
+}
+
+.site-header h1 {
+    font-size: 26px;
+    color: #1a1a2e;
+    letter-spacing: 2px;
+}
+
+.top-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    max-width: 560px;
+    margin: 16px auto 0;
+    border-bottom: 1px solid #dfe3e8;
+}
+
+.top-tabs a {
+    flex: 1;
+    max-width: 180px;
+    padding: 9px 14px;
+    font-size: 15px;
+    color: #666;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+}
+
+.top-tabs a:hover {
+    color: #1890ff;
+}
+
+.top-tabs a.active {
+    color: #1890ff;
+    font-weight: 600;
+    border-bottom-color: #1890ff;
+}
+
 .card {
     background: #fff;
     border-radius: 8px;
@@ -432,6 +475,14 @@ textarea#question:focus {
     table th,
     table td {
         padding: 6px 8px;
+    }
+    .site-header h1 {
+        font-size: 21px;
+        letter-spacing: 1px;
+    }
+    .top-tabs a {
+        padding: 8px 6px;
+        font-size: 14px;
     }
 }
 
