@@ -92,12 +92,106 @@ def _assign_tracks(home: str, allowed: List[str]) -> Tuple[List[str], int]:
     return list(allowed), allowed.index(home) if home in allowed else 0
 
 
+def _extend_tracks(allowed: List[str], home: str, need: int) -> List[str]:
+    """按「股道充足」假设把股道补到 need 条。
+
+    基准方案（不合并下落列）不受当前股道数限制：数字道号从当前最大值递增
+    （例4.3 的 10–13 → 补 14，与教材表 4.7 一致）；非数字道号退回 `<home>-基准n`。
+    """
+    out = list(allowed)
+    if home not in out:
+        out.insert(0, home)
+    if len(out) >= need:
+        return out
+    used = set(out)
+    nums = []
+    for t in out:
+        try:
+            nums.append(int(t))
+        except (TypeError, ValueError):
+            continue
+    if nums:
+        nxt = max(nums) + 1
+        while len(out) < need:
+            while str(nxt) in used:
+                nxt += 1
+            out.append(str(nxt))
+            used.add(str(nxt))
+            nxt += 1
+    else:
+        i = 1
+        while len(out) < need:
+            name = f"{home}-基准{i}"
+            i += 1
+            if name in used:
+                continue
+            out.append(name)
+            used.add(name)
+    return out
+
+
+def _build_scheme(groups: List[Group], columns, super_cols, tracks: List[str],
+                  home: str, depart: str, weights: Optional[Dict[str, float]],
+                  is_baseline: bool, allowed_tracks: List[str]):
+    """把一组列划分交给引擎调度；跑通则返回 scheme dict（id 由调用方编）。"""
+    home_col = _col_of_first(columns, groups[0].pos)
+    home_sup = None
+    for idx, grp in enumerate(super_cols):
+        if home_col in grp:
+            home_sup = idx
+            break
+    if home_sup is None:
+        return None
+
+    # 分配物理股道：home 超列 → home；其余依次给 tracks 中的其他道
+    others = [t for t in tracks if t != home]
+    need = len(super_cols) - 1
+    while len(others) < need:
+        others.append(f"{len(others) + 1}线")
+    super_tracks = [home] * len(super_cols)
+    non_home = [i for i in range(len(super_cols)) if i != home_sup]
+    for k, idx in enumerate(non_home):
+        super_tracks[idx] = others[k]
+
+    r = schedule(groups, columns, super_cols, super_tracks, home, depart)
+    if not r.ok:
+        return None
+    stats = r.stats
+    w = weights or {"pull": 4.0, "throw": 1.0, "transfer": 1.0}
+    stats.weighted = (w["pull"] * stats.hooks_pull
+                      + w["throw"] * stats.hooks_throw
+                      + w["transfer"] * stats.hooks_transfer)
+    stats.tracks_used = len(super_cols)
+    hooks = [h.to_dict(super_tracks) for h in r.hooks]
+    final_lead = r.hooks[-1].state.lead if r.hooks else []
+    formation = [c.station for c in final_lead]
+    extras = ([t for t in tracks if t not in allowed_tracks and t != home]
+              if is_baseline else [])
+    return {
+        "label": super_label(super_cols),
+        "supercols": [sorted(c) for c in super_cols],
+        "track_alloc": [{"super": super_label([c]), "track": super_tracks[i]}
+                        for i, c in enumerate(super_cols)],
+        "stats": stats.to_dict(),
+        "hooks": hooks,
+        "final_formation": formation,
+        "best": False,
+        "baseline": is_baseline,
+        "extra_tracks": extras,
+        "deep": any(len(c) >= 3 for c in super_cols),
+    }
+
+
 def solve(groups: List[Group], home: str,
           allowed_tracks: Optional[List[str]] = None,
           depart: str = "DF",
           weights: Optional[Dict[str, float]] = None,
-          columns_override: Optional[List[List[Group]]] = None) -> dict:
-    """主入口：返回可直接 JSON 的结果 dict（与 /api/solve 契约一致）。"""
+          columns_override: Optional[List[List[Group]]] = None,
+          deep_merge: bool = False) -> dict:
+    """主入口：返回可直接 JSON 的结果 dict（与 /api/solve 契约一致）。
+
+    deep_merge=True 时额外枚举「二·四·五」三列暂合候选（例4.4 / 习题3 的教材做法）。
+    """
     budget = len(allowed_tracks) if allowed_tracks else max(2, total_cars(groups))
     if allowed_tracks is None:
         # 兜底：不限定线路 → 用足够多的虚拟道
@@ -108,8 +202,6 @@ def solve(groups: List[Group], home: str,
         columns, adjust_moves = columns_override, []
     else:
         columns, adjust_moves = tiaozheng.adjust_with_moves(groups)   # 邻组化调整
-    first_pos = groups[0].pos
-    home_col = _col_of_first(columns, first_pos)
     K = len(columns)
 
     # 预收集候选列分组，预算=可用道数（super 数 ≤ 可用道数）
@@ -143,68 +235,62 @@ def solve(groups: List[Group], home: str,
         "track_budget": {"limit": budget},
     }
 
+    # 不暂合（每列一线）单独作为「基准方案」：不受当前股道数限制地按股道充足假设生成，
+    # 因此先从普通候选里移出，避免重复。
+    baseline_parts = [[i] for i in range(K)]
+    baseline_key = tuple((i,) for i in range(K))
+    candidates = [c for c in candidates
+                  if tuple(tuple(p) for p in c) != baseline_key]
+
+    # 教材式三列暂合：合并下落列二、四、五（其余列单列）。仅在调用方显式要求时加入，
+    # 避免影响例4.3 / 习题2 / 习题12 等题的标准答案。
+    if deep_merge and K == 5 and budget >= 3:
+        parts = [[0], [1, 3, 4], [2]]
+        key = tuple(tuple(p) for p in parts)
+        if not any(tuple(tuple(p) for p in c) == key for c in candidates):
+            candidates.append(parts)
+
+    baseline_tracks = _extend_tracks(allowed_tracks, home, K)
+
     schemes = []
-    for si, super_cols in enumerate(candidates):
-        # home 超列 = 含 home_col 的组
-        home_sup = None
-        for idx, grp in enumerate(super_cols):
-            if home_col in grp:
-                home_sup = idx
-                break
-        if home_sup is None:
-            continue
-        # 分配物理股道：home 超列 → home；其余依次给 allowed 中的其他道
-        others = [t for t in allowed_tracks if t != home]
-        # 若 allowed 包含 home 之外的道不足，给足合成道（兜底）
-        need = len(super_cols) - 1
-        while len(others) < need:
-            others.append(f"{len(others) + 1}线")
-        super_tracks = [home] * len(super_cols)
-        non_home = [i for i in range(len(super_cols)) if i != home_sup]
-        for k, idx in enumerate(non_home):
-            super_tracks[idx] = others[k]
+    for super_cols in candidates:
+        s = _build_scheme(groups, columns, super_cols, allowed_tracks, home,
+                          depart, weights, False, allowed_tracks)
+        if s is not None:
+            s["id"] = f"s{len(schemes)}"
+            schemes.append(s)
 
-        r = schedule(groups, columns, super_cols, super_tracks, home, depart)
-        if not r.ok:
-            continue
-        stats = r.stats
-        w = weights or {"pull": 4.0, "throw": 1.0, "transfer": 1.0}
-        stats.weighted = (w["pull"] * stats.hooks_pull
-                          + w["throw"] * stats.hooks_throw
-                          + w["transfer"] * stats.hooks_transfer)
-        stats.tracks_used = len(super_cols)
-        hooks = [h.to_dict(super_tracks) for h in r.hooks]
-        final_lead = r.hooks[-1].state.lead if r.hooks else []
-        formation = [c.station for c in final_lead]
-        schemes.append({
-            "id": f"s{len(schemes)}",
-            "label": super_label(super_cols),
-            "supercols": [sorted(c) for c in super_cols],
-            "track_alloc": [{"super": super_label([c]), "track": super_tracks[i]}
-                            for i, c in enumerate(super_cols)],
-            "stats": stats.to_dict(),
-            "hooks": hooks,
-            "final_formation": formation,
-            "best": False,
-        })
+    # 基准方案固定第一：不合并各下落列，按需要的 K 条线路计算
+    base = _build_scheme(groups, columns, baseline_parts, baseline_tracks, home,
+                         depart, weights, True, allowed_tracks)
+    if base is not None:
+        base["id"] = f"s{len(schemes)}"
+        schemes = [base] + schemes
 
-    # 目标打分：weighted 最小；并列再比 total_hooks、线数
-    if schemes:
-        def keyfn(s):
-            st = s["stats"]
-            return (st["weighted"], st["total_hooks"], st.get("tracks_used", 99))
-        schemes.sort(key=keyfn)
-        best_id = schemes[0]["id"]
-        for s in schemes:
-            s["best"] = (s["id"] == best_id)
-        # 权重默认取 4/1/1；此处以加权最小者为最优
-    return {
+    # 目标打分：暂合方案 weighted 最小；并列再比 total_hooks、线数
+    # 基准只作比较参照，不参加最优评选
+    def keyfn(s):
+        st = s["stats"]
+        return (st["weighted"], st["total_hooks"], st.get("tracks_used", 99))
+
+    ranked = sorted([s for s in schemes if not s["baseline"]], key=keyfn)
+    best_id = ranked[0]["id"] if ranked else None
+    for s in ranked:
+        s["best"] = (s["id"] == best_id)
+    schemes = [s for s in schemes if s["baseline"]] + ranked
+
+    result = {
         "success": True,
         "meta": meta,
         "stages": stages,
         "schemes": schemes,
-        "best_scheme_id": schemes[0]["id"] if schemes else None,
+        "best_scheme_id": best_id,
     }
+    if not ranked:
+        result["note"] = (
+            "当前股道数下无可运行的暂合方案（调度无法收敛）；"
+            f"下方仅显示不合并下落列的基准方案（按股道充足假设需 {K} 条线路），供比较。")
+    return result
 
 
 def _make_allowed(home: str, budget: int) -> List[str]:
@@ -224,11 +310,13 @@ def parse_and_solve(seq: str, home: str, depart: str,
                     track_budget: Optional[int] = None,
                     station_order: Optional[str] = None,
                     weights: Optional[Dict[str, float]] = None,
-                    columns_override: Optional[List[List[Group]]] = None) -> dict:
+                    columns_override: Optional[List[List[Group]]] = None,
+                    deep_merge: bool = False) -> dict:
     groups = parser.parse_seq(seq, station_order)
     if allowed_tracks is None and track_budget is not None:
         allowed_tracks = _make_allowed(home, track_budget)
     if allowed_tracks is None:
         allowed_tracks = _make_allowed(home, max(3, total_cars(groups)))
     return solve(groups, home, allowed_tracks=allowed_tracks, depart=depart,
-                 weights=weights, columns_override=columns_override)
+                 weights=weights, columns_override=columns_override,
+                 deep_merge=deep_merge)

@@ -68,6 +68,9 @@ def schedule(groups: List[Group],
         return res
 
     max_st = max(g.station for g in groups)
+    # 深暂合：超列含 ≥3 个原始列（如例4.4 的二·四·五）。R1 尾段与拆分走专门规则，
+    # 避免终段车辆先投进暂合列、再被二次倒钩。
+    deep = any(len(cs) >= 3 for cs in super_cols)
     track_order = list(track_of_super)
     y = Yard(groups, home, track_order)
     total = y.total
@@ -106,7 +109,13 @@ def schedule(groups: List[Group],
         # 若 home 超列是单列，这些车已处最终近端，直接保留至成列。
         tail = 0
         for c in reversed(lead):
-            if pos_to_super[c.gid] == home_super or c.station == max_st:
+            if deep:
+                keep = (c.station == max_st
+                        or len(super_cols[pos_to_super[c.gid]]) >= 3)
+            else:
+                keep = (pos_to_super[c.gid] == home_super
+                        or c.station == max_st)
+            if keep:
                 tail += 1
             else:
                 break
@@ -151,8 +160,21 @@ def schedule(groups: List[Group],
                 done_messy.add(sup)
                 continue
             n_pull = len(content)
-            # 整列牵出
-            y.pull_all(tgt_track, begin_round(), f"拆分牵出({tgt_track})")
+            # 三列暂合：远端连续的「全局最大去向」段先留在股道上，作为最终尾段；
+            # 其余牵出归块，处理完再把保留段整列挂回牵出线。
+            keep_far = 0
+            if len(super_cols[sup]) >= 3:
+                while keep_far < len(content) and content[keep_far].station == max_st:
+                    keep_far += 1
+            if keep_far > 0 and keep_far >= len(content):
+                y.pull_all(tgt_track, begin_round(), f"暂合列尾段牵出({tgt_track})")
+                done_messy.add(sup)
+                continue
+            if keep_far:
+                y.pull_part(tgt_track, keep_far, begin_round(),
+                            f"拆分牵出({tgt_track})，远端留 {keep_far} 辆")
+            else:
+                y.pull_all(tgt_track, begin_round(), f"拆分牵出({tgt_track})")
             # ---- 最终宿主预计算（对全局 messy 列一次性算好） ----
             final_super: Dict[int, int] = {}
             all_cols_in_messy = set()
@@ -197,6 +219,8 @@ def schedule(groups: List[Group],
                     j += 1
                 y.throw(ht, j, cur_round(), f"归块溜放({ht})")
                 need -= j
+            if keep_far and y.state.tracks[tgt_track]:
+                y.pull_all(tgt_track, begin_round(), f"暂合列尾段牵出({tgt_track})")
             done_messy.add(sup)
             rr += 1
             if rr >= max_rounds:

@@ -90,8 +90,9 @@
                 </section>
 
                 <section class="card" id="schemeCard" style="display:none;">
-                    <h2>暂合候选方案 <span class="hint">点击选择方案；★ 为按时间模型最优</span></h2>
+                    <h2>候选方案（含不合并基准） <span class="hint">点击选择方案；★ 为暂合方案中的最优（基准不参评）</span></h2>
                     <div id="schemePicker" class="scheme-picker"></div>
+                    <p id="schemeNote" class="note-text" style="display:none;"></p>
 
                     <div id="schemeDetail">
                         <h3>钩计划与逐步股道图</h3>
@@ -124,10 +125,10 @@
         // ---------------- 输入与示例 ----------------
         const PRESETS = {
             "例4.3": { seq: "b₂a₁c₁f₂e₁b₁f₂a₂c₁e₁d₂a₁", station_order: "fedcba", home: "10", allowed: "10,11,12,13", budget: "", depart: "DF3" },
-            "例4.4": { seq: "edgafbgfcea", station_order: "gfedcba", home: "12", allowed: "10,11,12,13,14", budget: "", depart: "DF5" },
+            "例4.4": { seq: "edgafbgfcea", station_order: "gfedcba", home: "12", allowed: "10,11,12,13,14", budget: "", depart: "DF5", deep_merge: true },
             "例4.6": { seq: "4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₂", station_order: "", home: "7", allowed: "7,8,9,10", budget: "", depart: "DF3" },
             "习题2": { seq: "1₃4₁6₁5₃1₂4₁3₁2₂6₂7₃", station_order: "", home: "10", allowed: "", budget: 5, depart: "DF5" },
-            "习题3": { seq: "3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁", station_order: "", home: "10", allowed: "", budget: 3, depart: "DF5" },
+            "习题3": { seq: "3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁", station_order: "", home: "10", allowed: "", budget: 3, depart: "DF5", deep_merge: true },
             "习题7": { seq: "73652264135347", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
             "习题8": { seq: "659142481736", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
             "习题9": { seq: "835327144357664", station_order: "", home: "10", allowed: "", budget: "", depart: "DF5" },
@@ -135,6 +136,9 @@
         };
 
         const SUB = { "₁":1,"₂":2,"₃":3,"₄":4,"₅":5,"₆":6,"₇":7,"₈":8,"₉":9 };
+
+        // 三列暂合（二·四·五）：例4.4 / 习题3 的预设开启；手动改数据后关闭
+        let DEEP_MERGE = false;
 
         document.querySelectorAll('.preset').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -146,10 +150,22 @@
                 document.getElementById('allowedTracks').value = p.allowed || '';
                 document.getElementById('budget').value = p.budget === '' ? '' : p.budget;
                 document.getElementById('departTrack').value = p.depart;
+                // 选中态：蓝底白字（与编组计划页一致）
+                document.querySelectorAll('.preset').forEach(x => x.classList.toggle('active', x === btn));
+                DEEP_MERGE = !!p.deep_merge;
                 hideError();
                 solve();
             });
         });
+
+        // 手动修改输入后，不再声称是某个预设题
+        ['seqInput', 'stationOrder', 'homeTrack', 'allowedTracks', 'budget', 'departTrack']
+            .forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    document.querySelectorAll('.preset.active').forEach(x => x.classList.remove('active'));
+                    DEEP_MERGE = false;
+                });
+            });
 
         // 习题按钮：HTML 里已写死 disabled（即使脚本报错、接口不通也是灰的，fail-closed）。
         // 只有服务端明确回报解锁态（MODE="full"）才放开；真正的闸门在服务端 /api/solve。
@@ -211,6 +227,7 @@
             const depart = document.getElementById('departTrack').value.trim() || 'DF5';
             const payload = { seq, home_track: home, depart_track: depart };
             if (order) payload.station_order = order;
+            if (DEEP_MERGE) payload.deep_merge = true;
             if (allowedRaw) {
                 payload.allowed_tracks = allowedRaw.split(/[\s,，]+/).filter(Boolean);
                 if (!payload.allowed_tracks.includes(home)) payload.allowed_tracks.unshift(home);
@@ -358,12 +375,26 @@
             const picker = document.getElementById('schemePicker');
             picker.innerHTML = schemes.map(s => {
                 const st = s.stats;
-                const cls = s.best ? 'scheme-chip best' : 'scheme-chip';
+                const cls = 'scheme-chip' + (s.best ? ' best' : '') + (s.baseline ? ' baseline' : '');
+                const badge = (s.baseline ? '<span class="s-chip-baseline">基准·不合并</span>' : '')
+                    + (s.deep ? '<span class="s-chip-deep">三列暂合</span>' : '');
                 return `<button type="button" class="${cls}" data-id="${s.id}">
-                    ${s.best ? '★' : ''}${s.label}
+                    ${s.best ? '★' : ''}${s.label}${badge ? ' ' + badge : ''}
                     <span class="s-chip-sub">${st.hooks_pull}挂 · ${st.hooks_throw}溜 · ${st.hooks_transfer}转 = ${st.textbook_total}钩(${st.tracks_used}线)</span>
                 </button>`;
             }).join('');
+
+            // 基准方案说明：股道不足时是「按股道充足假设」补线算出的，仅作比较参照
+            const noteEl = document.getElementById('schemeNote');
+            const base = schemes.find(s => s.baseline);
+            const notes = [];
+            if (RESULT.note) notes.push(RESULT.note);
+            if (!RESULT.note && base && (base.extra_tracks || []).length) {
+                notes.push(`基准方案不合并各下落列，按股道充足假设计算（需 ${base.stats.tracks_used} 条线路，`
+                    + `其中 ${base.extra_tracks.join('、')} 道为补足线），仅作比较基准。`);
+            }
+            noteEl.textContent = notes.join(' ');
+            noteEl.style.display = notes.length ? 'block' : 'none';
             picker.querySelectorAll('.scheme-chip').forEach(b => {
                 b.addEventListener('click', () => {
                     CURRENT_SCHEME = RESULT.schemes.find(s => s.id === b.dataset.id);
@@ -403,7 +434,8 @@
                 <div class="table-wrapper"><table class="alloc-table">
                     <thead><tr><th>暂合列</th><th>作业股道</th><th>备注</th></tr></thead>
                     <tbody>${s.track_alloc.map(a => {
-                        const seat = a.track === homeT ? '坐底（停留道）' : '';
+                        const extra = (s.extra_tracks || []).includes(a.track);
+                        const seat = a.track === homeT ? '坐底（停留道）' : (extra ? '基准补足线' : '');
                         return `<tr><td>${a.super}</td><td><b>${a.track}</b>道</td><td>${seat}</td></tr>`;
                     }).join('')}</tbody>
                 </table></div>`;

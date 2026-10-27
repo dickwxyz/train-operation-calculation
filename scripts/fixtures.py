@@ -15,8 +15,9 @@
   5. 例题白名单闸门（scripts.mode）：**锁定态下**（显式 locked=True，与当前出厂 MODE 无关）
      只放行 3 个例题；规范形对"站号重命名 / 车组改写 / 书写格式"均不变，故 6 个习题的原题与
      各种变形一律被拒（含用户实测报出的「原题+站序7654321」「展开式」两条绕过）；
-     前端 index.html 的 PRESETS 与白名单不漂移；mode_payload 与 MODE 自洽。
-注意：例4.4 三列合并（二·四·五）与习题3（3 线预算）在当前调度引擎下仍无可行方案，不在此固件断言。
+     前端 index.html 的习题 PRESETS 不在白名单；mode_payload 与 MODE 自洽。
+注意：例4.4 三列合并（二·四·五）与习题3（3 线预算）在当前调度引擎下仍无暂合可行方案；
+习题3 只显示不合并基准方案，基准断言见 4b。
 """
 
 from __future__ import annotations
@@ -107,6 +108,82 @@ def run() -> None:
             f = b["final_formation"]
             ok = all(f[i] <= f[i + 1] for i in range(len(f) - 1))
         check(f"{name} 有可行方案且终列非降", ok)
+
+    print("== 4b) 基准方案（不合并下落列，按股道充足假设生成） ==")
+    for name, p in parser.PRESETS.items():
+        res = parse_and_solve(p["seq"], p["home_track"], p["depart_track"],
+                              allowed_tracks=p.get("allowed_tracks"),
+                              track_budget=p.get("track_budget"),
+                              station_order=p.get("station_order"))
+        sch = res["schemes"]
+        base = sch[0] if sch else None
+        ok = bool(base and base.get("baseline"))
+        if ok:
+            f = base["final_formation"]
+            ok = all(f[i] <= f[i + 1] for i in range(len(f) - 1))
+        if ok:
+            # 基准只作比较参照：任何题目的基准都不带 ★
+            ok = not any(s.get("best") and s.get("baseline") for s in sch)
+        check(f"{name} 有基准方案（排第一、终列非降、不评最优）", ok,
+              str([(s["label"], s.get("baseline"), s["best"]) for s in sch]))
+
+    res = parse_and_solve("b₂a₁c₁f₂e₁b₁f₂a₂c₁e₁d₂a₁", "10", "DF3",
+                          allowed_tracks=["10", "11", "12", "13"], station_order="fedcba")
+    b = res["schemes"][0]
+    check("例4.3 基准股道=教材表4.7",
+          {a["track"] for a in b["track_alloc"]} == {"10", "11", "12", "13", "14"},
+          str(b["track_alloc"]))
+    check("例4.3 基准 6挂8溜",
+          (b["stats"]["hooks_pull"], b["stats"]["hooks_throw"]) == (6, 8), str(b["stats"]))
+
+    res = parse_and_solve("3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁", "10", "DF5", track_budget=3)
+    check("习题3 仅显示基准方案且无最优",
+          len(res["schemes"]) == 1 and res["schemes"][0].get("baseline")
+          and res["best_scheme_id"] is None and bool(res.get("note")),
+          str([(s["label"], s.get("baseline")) for s in res["schemes"]]))
+
+    print("== 4c) 三列暂合（二·四·五，deep_merge） ==")
+    TRIPLE = [[0], [1, 3, 4], [2]]
+    r44 = parse_and_solve("edgafbgfcea", "12", "DF5",
+                          allowed_tracks=["10", "11", "12", "13", "14"],
+                          station_order="gfedcba", deep_merge=True)
+    t44 = next((s for s in r44["schemes"] if s["supercols"] == TRIPLE), None)
+    check("例4.4 三列暂合存在且最优", bool(t44 and t44["best"]),
+          str([(s["label"], s["best"]) for s in r44["schemes"]]))
+    if t44:
+        st = t44["stats"]
+        check("例4.4 三列暂合 5挂7溜（教材方案一）",
+              (st["hooks_pull"], st["hooks_throw"], st["hooks_transfer"]) == (5, 7, 1),
+              str(st))
+        f = t44["final_formation"]
+        check("例4.4 三列暂合终列非降",
+              all(f[i] <= f[i + 1] for i in range(len(f) - 1)), str(f))
+        check("例4.4 三列暂合钩序=算例集方案一",
+              [h["code"] for h in t44["hooks"]] ==
+              ["12+9", "10-1", "11-3", "10-2", "12-1", "11+2", "10-1",
+               "12-1", "10-1", "11+1", "12+4", "10+5", "DF5-11"],
+              str([h["code"] for h in t44["hooks"]]))
+
+    r3d = parse_and_solve("3₁4₂7₃6₂1₃2₁5₃1₁3₂5₃3₁", "10", "DF5",
+                          track_budget=3, deep_merge=True)
+    t3 = next((s for s in r3d["schemes"] if s["supercols"] == TRIPLE), None)
+    if t3:
+        st = t3["stats"]
+        f = t3["final_formation"]
+        check("习题3 三列暂合 5挂7溜且终列非降",
+              (st["hooks_pull"], st["hooks_throw"], st["hooks_transfer"]) == (5, 7, 1)
+              and all(f[i] <= f[i + 1] for i in range(len(f) - 1)), str(st))
+        check("习题3 三列暂合为最优", t3["best"] and r3d["best_scheme_id"] == t3["id"],
+              str(r3d["best_scheme_id"]))
+    else:
+        check("习题3 三列暂合存在", False, str([s["label"] for s in r3d["schemes"]]))
+
+    r44d = parse_and_solve("edgafbgfcea", "12", "DF5",
+                           allowed_tracks=["10", "11", "12", "13", "14"],
+                           station_order="gfedcba")
+    check("例4.4 默认（deep_merge=False）不枚举三列暂合",
+          all(s["supercols"] != TRIPLE for s in r44d["schemes"]),
+          str([s["label"] for s in r44d["schemes"]]))
 
     print("== 5) 例题白名单闸门（scripts.mode） ==")
     import pathlib

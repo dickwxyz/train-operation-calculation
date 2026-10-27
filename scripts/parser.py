@@ -210,6 +210,7 @@ PRESETS: Dict[str, Dict] = {
         "home_track": "12",
         "allowed_tracks": ["10", "11", "12", "13", "14"],
         "depart_track": "DF5",
+        "deep_merge": True,          # 教材例4.4 方案一：二·四·五三列暂合
     },
     "例4.6": {
         "seq": "4₂5₂6₁3₁5₂1₃2₁4₃3₂6₁5₁3₂1₁4₂7₂",
@@ -230,6 +231,7 @@ PRESETS: Dict[str, Dict] = {
         "track_budget": 3,
         "budget_includes_home": True,
         "depart_track": "DF5",
+        "deep_merge": True,          # 合并下落列二、四、五
     },
     "习题7": {
         "seq": "73652264135347",

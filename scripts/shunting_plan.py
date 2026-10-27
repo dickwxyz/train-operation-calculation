@@ -2,7 +2,8 @@
 
 用法：
     ShuntingPlan(seq=..., home_track=..., allowed_tracks=...|track_budget=...,
-                 depart_track=..., station_order=..., weights=...).solve()
+                 depart_track=..., station_order=..., weights=...,
+                 deep_merge=...).solve()
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ class ShuntingPlan:
                  track_budget: Optional[int] = None,
                  depart_track: str = "DF",
                  station_order: Optional[str] = None,
-                 weights: Optional[Dict[str, float]] = None):
+                 weights: Optional[Dict[str, float]] = None,
+                 deep_merge: bool = False):
         self.seq = seq
         self.home_track = home_track
         self.allowed_tracks = allowed_tracks
@@ -27,6 +29,7 @@ class ShuntingPlan:
         self.depart_track = depart_track
         self.station_order = station_order
         self.weights = weights
+        self.deep_merge = deep_merge
 
     def solve(self) -> dict:
         return parse_and_solve(
@@ -34,4 +37,5 @@ class ShuntingPlan:
             allowed_tracks=self.allowed_tracks,
             track_budget=self.track_budget,
             station_order=self.station_order,
-            weights=self.weights)
+            weights=self.weights,
+            deep_merge=self.deep_merge)

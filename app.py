@@ -59,7 +59,8 @@ def solve():
 
     请求：{"seq": "…", "station_order": null, "home_track": "10",
             "allowed_tracks": [...] | "track_budget": n, "depart_track": "DF5",
-            "weights": {pull,throw,transfer}}
+            "weights": {pull,throw,transfer},
+            "deep_merge": false}   // true = 额外枚举二·四·五三列暂合（例4.4/习题3）
     返回：{success, meta, stages{xialuo,tiaozheng}, schemes[], best_scheme_id}
     校验规则与 static/index.html 的 validate 函数保持一致（改输入规则需同步两处）。
     """
@@ -73,6 +74,7 @@ def solve():
         home = str(data.get("home_track") or "10").strip()
         depart = str(data.get("depart_track") or "DF").strip()
         weights = data.get("weights")
+        deep_merge = bool(data.get("deep_merge"))
 
         if not seq:
             return jsonify({"error": "待编车列为空"}), 400
@@ -106,6 +108,7 @@ def solve():
             seq, home_track=home, allowed_tracks=allowed,
             track_budget=budget, depart_track=depart,
             station_order=station_order, weights=weights,
+            deep_merge=deep_merge,
         ).solve()
 
         if not result["schemes"]:
