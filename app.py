@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from scripts.shunting_plan import ShuntingPlan
 from scripts import parser as seq_parser
 from scripts import mode as appmode
+from scripts.build_bianzu_page import render_bianzu_panel
 from rag import qa
 
 app = Flask(__name__)
@@ -29,6 +30,20 @@ def bianzu_page():
 def bianzu_svg(filename):
     """bianzu.html 用相对路径引用到达站图；与 /style.css 同理补一条映射。"""
     return app.send_static_file(os.path.join("svg", "bianzu", filename))
+
+
+@app.route("/api/bianzu", methods=["POST"])
+def api_bianzu():
+    """编组算例页：接收编辑后的 T集/t节/车流，返回重算后的 panel HTML。"""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "请求体必须是 JSON 对象"}), 400
+    try:
+        html = render_bianzu_panel(
+            data.get("key"), data.get("T"), data.get("t"), data.get("N"))
+        return jsonify({"success": True, "html": html})
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/style.css")
