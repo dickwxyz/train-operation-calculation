@@ -105,7 +105,7 @@ RRF 融合）→ DeepSeek **严格依据检索片段**组织答案，片段不�
 ### 代码分层
 
 - `app.py` — Flask 入口，`send_static_file` 分发 `/`、`/qa`、`/bianzu`（及 `/svg/bianzu/*`、`/style.css`）（**无 `templates/`**）；`/api/solve` 校验后调 `scripts.shunting_plan.ShuntingPlan`；另有 `/api/mode`、`/api/bianzu`、`/api/qa`。
-- `scripts/`（纯 Python、零第三方、单向依赖）：
+- `scripts/`（调车表法算法为主；`parser`…`shunting_plan` 纯 Python、零第三方、单向依赖；`rag/` 另见下）：
   - `parser.py` → `model.py` → `xialuo.py`（下落）→ `tiaozheng.py`（邻组化调整）→ `engine.py`（逐钩物理模拟+快照）→ `planner.py`（基准方案 + 枚举暂合（含三列暂合）/股道分配/调度/择优）→ `shunting_plan.py`（门面）。
   - `fixtures.py` 依赖全部，仅测试。
   - `simulator.py` 提供 engine 使用的基础原语（`pull_part`/`pull_all`/`throw`/`transfer` + 状态快照）。
@@ -122,7 +122,7 @@ RRF 融合）→ DeepSeek **严格依据检索片段**组织答案，片段不�
   以后可替换为 API embedding/Chroma，只需实现 `vector.VectorBackend`。
 - `knowledge_base/调车工作/` — 教材第四章结构化提炼（提炼/术语表/算例集/原文 md/images）。
 - `knowledge_base/技术站列车编组计划的编制/` — 第十一章原文/提炼/术语表/算例集与 images/；`/bianzu` 的数据与算例步骤依据。
-- `assets/` — 教材 PDF（版权，gitignore 未跟踪）。`过程/`（gitignored）— 开发实录（第十一章资料已迁至 `knowledge_base/`）。
+- `assets/` — 教材 PDF（版权；仓库内当前跟踪两份章节 PDF：调车、技术站编组）。`过程/`（gitignored）— 开发实录（第十一章资料已迁至 `knowledge_base/`）。
 
 ### 堆序约定（全项目唯一，务必遵守）
 
@@ -178,7 +178,7 @@ RRF 融合）→ DeepSeek **严格依据检索片段**组织答案，片段不�
 - **闸门只挡 `/api/solve`**：`/api/qa` 目前不过闸——若语料将来含习题答案，需一并接入 `mode.is_allowed()`。前端 JS 与 `index.html` 里仍有 6 个习题的**原题**（`view-source:` 可见），那是教材上的题面、不是答案，属可接受；锁定态下求解请求在 `jsonify(result)` 之前就被拒，答案不会返回。当前 `MODE="full"`，闸门本就未生效。
 - **三列暂合有条件出现**：只有 `deep_merge=true`（例4.4/习题3 预设自动开启；页面手动输入不发送该标记，其他客户端可自行传参）且 K=5、可用股道 ≥3 时，才加入「二·四·五」三列暂合；例4.4 复现算例集方案一（5挂7溜），习题3 生成 5挂7溜；未开启的旧请求行为不变。其他三列组合尚未纳入枚举。
 - 自动调整只做单对边界邻组；非教材算例钩数为引擎实测（正确可运行），未必等于某人工最优。
-- **RAG 依赖本地模型与索引**：`bge-m3/`（约 2.2GB，gitignored）与 `rag_index/`（生成数据，保留在根目录）；换机器需重新复制模型并跑 `build_index.py`。`bge-m3` CPU 建索引约 10–30 分钟，运行内存约 2–3GB。
+- **RAG 依赖本地模型与索引**：`bge-m3/`（约 2.2GB，gitignored）与 `rag_index/`（生成数据，保留在根目录）；换机器需重新复制模型并跑 `build_index.py`。`bge-m3` CPU 建索引本机实测约 190 秒（1594 块），运行内存约 2–3GB。
 - **RAG 严格依据教材片段**：片段不足时模型会明确说“教材原文未直接给出”；选择题不保证给出 A/B/C/D；计算题给公式与例题步骤、不替学生代入数字。教材习题本身只有题干、没有答案。
 - **RAG 页级精度**：第四章（印刷页 036–057）与第十一章（150–169）的补自块只能给页码范围，不能精确到单页。
 - Flask `debug` 由 `FLASK_DEBUG` 控制（默认关闭）；并发小、`threaded=True` 够用。教材 OCR 原文有少量噪声（如 `t节`），`knowledge_base` 已统一符号。
@@ -206,5 +206,6 @@ RRF 融合）→ DeepSeek **严格依据检索片段**组织答案，片段不�
 4. **第十一章《列车编组计划》**：知识库已迁至 `knowledge_base/技术站列车编组计划的编制/`；`/bianzu` 已覆盖
    例11.3/11.5/11.6 与习题1/2/3 的双算法完整过程。后续可补例11.4、其余习题、超过 5 个支点站的算例，
    以及更紧凑的表格排版（当前每个方案一张完整表，页面较长）。
+5. **调车作业计划（分批牵出）**：补充分批牵出（两批/多批分解）的例题及习题求解；当前引擎主要按一批分解生成轮计划。
 
 改算法前先读「架构与约定 → 算法流程」与 `knowledge_base/调车工作/调车工作-算例集.md`。
