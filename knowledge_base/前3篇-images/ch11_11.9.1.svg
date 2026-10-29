@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 420" width="950" height="420">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9.5" refY="5"
+            markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse"
+            orient="auto-start-reverse">
+      <path d="M0,1.2 L10,5 L0,8.8 z" fill="#000"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="950" height="420" fill="#ffffff"/>
+  <line x1="165" y1="95" x2="801" y2="95" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="165" y1="84" x2="165" y2="106" stroke="#000" stroke-width="2.2"/>
+  <text x="169" y="81" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">30</tspan><tspan dy="-5.5"> </tspan></text>
+  <line x1="165" y1="175" x2="589" y2="175" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="165" y1="164" x2="165" y2="186" stroke="#000" stroke-width="2.2"/>
+  <text x="169" y="161" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">31</tspan><tspan dy="-5.5"> </tspan></text>
+  <line x1="377" y1="255" x2="801" y2="255" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="377" y1="244" x2="377" y2="266" stroke="#000" stroke-width="2.2"/>
+  <text x="381" y="241" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">20</tspan><tspan dy="-5.5"> </tspan></text>
+  <line x1="165" y1="335" x2="377" y2="335" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="165" y1="324" x2="165" y2="346" stroke="#000" stroke-width="2.2"/>
+  <text x="169" y="321" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">32</tspan><tspan dy="-5.5"> </tspan></text>
+  <line x1="377" y1="335" x2="589" y2="335" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="377" y1="324" x2="377" y2="346" stroke="#000" stroke-width="2.2"/>
+  <text x="381" y="321" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">21</tspan><tspan dy="-5.5"> </tspan></text>
+  <line x1="589" y1="335" x2="801" y2="335" stroke="#000" stroke-width="2.2" marker-end="url(#ar)"/>
+  <line x1="589" y1="324" x2="589" y2="346" stroke="#000" stroke-width="2.2"/>
+  <text x="593" y="321" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="start" fill="#000"><tspan font-style="italic">N</tspan><tspan font-size="14" dy="5.5" font-style="normal">10</tspan><tspan dy="-5.5"> </tspan></text>
+  <text x="165" y="365" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="middle" fill="#000">3</text>
+  <text x="377" y="365" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="middle" fill="#000">2</text>
+  <text x="589" y="365" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="middle" fill="#000">1</text>
+  <text x="801" y="365" font-family="Times New Roman, Times, Liberation Serif, DejaVu Serif, serif" font-size="23" text-anchor="middle" fill="#000">0</text>
+</svg>

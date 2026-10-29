@@ -15,7 +15,7 @@
                 <a href="/bianzu">列车编组计划</a>
                 <a href="/qa" class="active">教材问答</a>
             </nav>
-            <p class="subtitle">《铁路行车组织（第2版）》第四、十一章 · 检索教材原文 + 大模型生成回答</p>
+            <p class="subtitle">《铁路行车组织（第2版）》前 3 篇 · 教材原文检索 + bge-m3 向量召回 + 大模型整理</p>
         </header>
 
         <section class="card">
@@ -30,6 +30,7 @@
 
         <section class="card" id="answerSection" style="display:none;">
             <h2>回答</h2>
+            <div id="modeBadge" class="qa-mode"></div>
             <div id="answerBox" class="qa-answer"></div>
         </section>
 
@@ -50,6 +51,7 @@
         const hint = document.getElementById('hint');
         const answerSection = document.getElementById('answerSection');
         const answerBox = document.getElementById('answerBox');
+        const modeBadge = document.getElementById('modeBadge');
         const sourcesSection = document.getElementById('sourcesSection');
         const sourcesList = document.getElementById('sourcesList');
 
@@ -70,7 +72,7 @@
                 detail.className = 'qa-source';
                 detail.open = sources.length <= 2;
                 const summary = document.createElement('summary');
-                summary.textContent = `${s.source} / ${s.section}`;
+                summary.textContent = `[${s.n || ''}] ${s.source} / ${s.section}${s.printed_page ? ' · ' + s.printed_page : ''}`;
                 const meta = document.createElement('div');
                 meta.className = 'qa-source-meta';
                 meta.textContent = '原文片段（截断）：';
@@ -116,12 +118,18 @@
                 if (data.answer) {
                     answerBox.textContent = data.answer;
                     answerSection.style.display = 'block';
+                    const modes = {
+                        llm: 'AI 整理 · 严格依据教材片段（[编号]对应下方出处）',
+                        llm_error: '大模型调用失败 · 下方仍列出检索到的教材出处',
+                        index_error: '向量索引不可用 · 请先构建 rag_index',
+                        no_result: '教材中未找到相关内容'
+                    };
+                    modeBadge.textContent = modes[data.mode] || '';
+                    modeBadge.style.display = modeBadge.textContent ? 'block' : 'none';
                 } else {
                     answerSection.style.display = 'none';
                     hint.style.display = 'block';
-                    hint.textContent = data.no_llm
-                        ? '尚未配置大模型 API（.env 中 LLM_API_KEY 未填写），仅展示检索到的教材原文片段。配置后即可获得生成式回答。'
-                        : '大模型调用失败，仅展示检索到的教材原文片段。请检查 .env 中的 LLM_API_KEY 及网络。';
+                    hint.textContent = '教材中没有找到与该问题直接相关的内容，请换用教材中的术语提问。';
                 }
 
                 if (data.sources && data.sources.length) {

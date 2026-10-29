@@ -5,7 +5,7 @@ from scripts.shunting_plan import ShuntingPlan
 from scripts import parser as seq_parser
 from scripts import mode as appmode
 from scripts.build_bianzu_page import render_bianzu_panel
-from rag import qa
+from scripts.rag import qa
 
 app = Flask(__name__)
 
@@ -136,7 +136,7 @@ def api_mode():
 
 @app.route("/api/qa", methods=["POST"])
 def api_qa():
-    """教材问答：检索相关片段 + DeepSeek 生成回答（未配置 key 时降级为仅返回原文）"""
+    """教材问答：章节级检索 + DeepSeek 组织答案（严格依据教材片段）"""
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "请求体为空"}), 400

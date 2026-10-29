@@ -16,3 +16,9 @@ venv/
 
 # macOS
 .DS_Store
+
+# MinerU 转换状态（续跑用，可删）
+/scripts/.cache/
+
+# 本地 bge-m3 模型（约 2.2GB，不入库；rag_index/ 按用户要求保留）
+/bge-m3/

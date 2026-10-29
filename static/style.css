@@ -430,6 +430,17 @@ textarea#question:focus {
     font-size: 14px;
 }
 
+.qa-mode {
+    display: none;
+    margin: 4px 0 10px;
+    padding: 4px 10px;
+    background: #eef4ff;
+    border-left: 3px solid #4a7dff;
+    color: #3557a5;
+    font-size: 12px;
+    border-radius: 3px;
+}
+
 .qa-answer {
     white-space: pre-wrap;
     font-size: 15px;

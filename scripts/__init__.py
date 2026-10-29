@@ -4,4 +4,6 @@
 parser → model → xialuo → tiaozheng → merges/tracks → simulator → objective
         → planner → shunting_plan
 fixtures 依赖全部（仅测试用）。
+
+`rag/` 是独立的教材原文检索问答包（不依赖上面的算法链，也不调用大模型）。
 """

@@ -1,0 +1,12 @@
+{
+  "corpus": "/Users/dq/Documents/Code/031调车作业计划智能体/knowledge_base/铁路行车组织第2版-前3篇.md",
+  "corpus_sha1": "d8fe91c51d3d34eb20f49e6fc6622164a47006c8",
+  "chunk_count": 1594,
+  "parent_count": 341,
+  "model": "bge-m3",
+  "model_path": "/Users/dq/Documents/Code/031调车作业计划智能体/bge-m3",
+  "dim": 1024,
+  "built_at": "2026-10-29 11:34:10",
+  "elapsed_sec": 190.0,
+  "limit": null
+}

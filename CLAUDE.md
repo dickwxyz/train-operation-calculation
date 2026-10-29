@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **调车作业计划（`/`）**：按《铁路行车组织（第2版）》第四章第五节的「调车表法」求解——输入待编车列与股道条件，自动完成 **下落 → 调整(邻组) → 暂合候选 + 不合并基准 → 股道分配 → 逐钩作业计划**（例4.4/习题3 另含「二·四·五」三列暂合），并分阶段展示、用逐步股道图回放每钩后的股道/牵出线状态。
 - **列车编组计划（`/bianzu`）**：第十一章技术站单组列车编组计划算例页——选题后按算例集步骤展示绝对计算法/表格计算法的完整表格、列车到达站图、最优方案与目标函数值（静态生成页，见「编组计划算例页」）。
-- **教材问答（`/qa`）**：教材检索 + 大模型问答。
+- **教材问答（`/qa`）**：教材原文检索 + 抽取式答题（不做生成式回答）。
 
 前端为原生 JS 静态页，无构建、无模板目录。
 
@@ -32,6 +32,15 @@ venv/bin/python app.py
   ```bash
   venv/bin/python scripts/build_bianzu_page.py
   ```
+- 教材问答（RAG）构建索引、命令行与回归：
+  ```bash
+  venv/bin/python -m scripts.rag.build_index          # bge-m3 建/校验 rag_index/
+  venv/bin/python -m scripts.rag "调车作业计划如何编制？"  # 混合检索 + DeepSeek 整理
+  venv/bin/python -m scripts.rag.eval                 # 34 条离线检索评测
+  venv/bin/python -m scripts.rag.eval --with-llm      # 额外 3 条真实 LLM 烟测
+  ```
+  首次部署需复制 `bge-m3/`（约 2.2GB，gitignored）并安装 `numpy/onnxruntime/tokenizers`；
+  `rag_index/` 是生成数据，按用户要求保留在仓库根目录、不加入 `.gitignore`。
 - API 手动测试（curl）见下节；也可起服务后在浏览器点例题/习题按钮。
 
 ## API
@@ -83,7 +92,13 @@ venv/bin/python app.py
 
 ### `POST /api/qa`（教材问答）
 
-`{question}` → `{answer, no_llm, sources[]}`。语料路径当前失效（见「已知问题 / 限制」），查询会报错——问答本次不在维护范围。
+`{question}`（≤500 字）→
+`{success, answer, qtype, mode, no_llm, queries, sources[{n, source, section, printed_page, block_type, score, snippet}]}`。
+链路：LLM 查询改写（口语 → 2–4 条教材式检索式）→ 章节级 BM25（词/字）+ bge-m3 向量（numpy 索引，
+RRF 融合）→ DeepSeek **严格依据检索片段**组织答案，片段不足时明确说明。
+`mode` 取值：`llm`（正常）、`llm_error`（大模型失败，仍返回 sources）、`index_error`（缺 `rag_index/` 或模型）、
+`no_result`（教材无相关内容）。检索语料为 `knowledge_base/铁路行车组织第2版-前3篇.md`。
+空问题 / 超过 500 字返回 400；LLM/索引错误仍 200 + `mode`。
 
 ## 架构与约定
 
@@ -98,7 +113,13 @@ venv/bin/python app.py
   - `build_bianzu_page.py` — 生成 `/bianzu` 静态页与到达站图；页面内嵌 JS 求解器（`RUNTIME_JS`），并将题目数据序列化为 `bz-data` JSON；同时提供 `render_bianzu_panel()` 给可选 API。内含教材算例断言。
   - `编组方案svg绘图/` — `draw_scheme.py`（到达站图 SVG 生成器，`SCHEMES` 定义默认题方案）+ 教材图源 PNG/SVG；默认页面用图由 `build_bianzu_page.py` 调用其 `build()` 生成，运行时图由同一函数动态构造。
 - `static/` — `index.html` 求解页、`qa.html` 问答页、`bianzu.html` 编组算例页（生成产物）、`svg/bianzu/` 到达站图、`style.css`。
-- `rag/` — 问答后端（corpus/tokenizer/retriever/llm/config/qa），语料路径失效，暂不维护。
+- `scripts/rag/` — 教材 RAG（章节级 BM25 + bge-m3 向量 + 大模型整理）：
+  `corpus.py` 解析全书 md（结构感知分块/页标记/表格/公式/例题/习题）并聚合成 parent section；
+  `retriever.py` 做 chunk 级词/字 BM25 聚合到 parent、与 bge-m3 向量做 RRF 融合；
+  `embedding.py` 跑本地 `bge-m3/onnx`（numpy/onnxruntime/tokenizers），`build_index.py` 生成根目录
+  `rag_index/`；`llm.py` 调 OpenAI 兼容接口（DeepSeek）；`qa.py` 负责查询改写、上下文组装与严格依据提示；
+  `cli.py`/`eval.py` 为命令行与回归评测。向量后端是 numpy 内存索引，未引入向量数据库；
+  以后可替换为 API embedding/Chroma，只需实现 `vector.VectorBackend`。
 - `knowledge_base/调车工作/` — 教材第四章结构化提炼（提炼/术语表/算例集/原文 md/images）。
 - `knowledge_base/技术站列车编组计划的编制/` — 第十一章原文/提炼/术语表/算例集与 images/；`/bianzu` 的数据与算例步骤依据。
 - `assets/` — 教材 PDF（版权，gitignore 未跟踪）。`过程/`（gitignored）— 开发实录（第十一章资料已迁至 `knowledge_base/`）。
@@ -154,10 +175,12 @@ venv/bin/python app.py
 
 ## 已知问题 / 限制
 
-- **闸门只挡 `/api/solve`**：`/api/qa`（RAG 修复后）目前不过闸——若语料将来含习题答案，需一并接入 `mode.is_allowed()`。前端 JS 与 `index.html` 里仍有 6 个习题的**原题**（`view-source:` 可见），那是教材上的题面、不是答案，属可接受；锁定态下求解请求在 `jsonify(result)` 之前就被拒，答案不会返回。当前 `MODE="full"`，闸门本就未生效。
+- **闸门只挡 `/api/solve`**：`/api/qa` 目前不过闸——若语料将来含习题答案，需一并接入 `mode.is_allowed()`。前端 JS 与 `index.html` 里仍有 6 个习题的**原题**（`view-source:` 可见），那是教材上的题面、不是答案，属可接受；锁定态下求解请求在 `jsonify(result)` 之前就被拒，答案不会返回。当前 `MODE="full"`，闸门本就未生效。
 - **三列暂合有条件出现**：只有 `deep_merge=true`（例4.4/习题3 预设自动开启；页面手动输入不发送该标记，其他客户端可自行传参）且 K=5、可用股道 ≥3 时，才加入「二·四·五」三列暂合；例4.4 复现算例集方案一（5挂7溜），习题3 生成 5挂7溜；未开启的旧请求行为不变。其他三列组合尚未纳入枚举。
 - 自动调整只做单对边界邻组；非教材算例钩数为引擎实测（正确可运行），未必等于某人工最优。
-- **RAG 语料路径失效**：`rag/corpus.py` 的 `SOURCES` 指向 `assets/铁路行车组织第2版-调车计划/…md` 与 `assets/铁路行车组织第2版-技术站列车编组计划的编制/…md`（`assets/` 现只有 PDF，md 不存在）。需要时改指实际 md（第四章 `knowledge_base/调车工作/铁路行车组织第2版-调车工作.md`；第十一章 `knowledge_base/技术站列车编组计划的编制/铁路行车组织第2版-技术站列车编组计划的编制.md`）。
+- **RAG 依赖本地模型与索引**：`bge-m3/`（约 2.2GB，gitignored）与 `rag_index/`（生成数据，保留在根目录）；换机器需重新复制模型并跑 `build_index.py`。`bge-m3` CPU 建索引约 10–30 分钟，运行内存约 2–3GB。
+- **RAG 严格依据教材片段**：片段不足时模型会明确说“教材原文未直接给出”；选择题不保证给出 A/B/C/D；计算题给公式与例题步骤、不替学生代入数字。教材习题本身只有题干、没有答案。
+- **RAG 页级精度**：第四章（印刷页 036–057）与第十一章（150–169）的补自块只能给页码范围，不能精确到单页。
 - Flask `debug` 由 `FLASK_DEBUG` 控制（默认关闭）；并发小、`threaded=True` 够用。教材 OCR 原文有少量噪声（如 `t节`），`knowledge_base` 已统一符号。
 - 本目录是 git 仓库（`main`）。文档改动请同步本文件与 `README.md`。
 
@@ -177,8 +200,9 @@ venv/bin/python app.py
    与 `planner.py`，并同步更新 `scripts/fixtures.py` 断言。例4.4 的二·四·五方案已与算例集方案一逐钩对齐（5挂7溜）。
 2. **其余三列组合 / 更一般的极紧预算**：二·四·五 已支持（例4.4/习题3）；其他三列组合、K≠5 的情形仍只枚举
    单对合并与连续块，需扩展候选枚举与 messy 拆分策略。
-3. **RAG 问答页与语料**：先修 `rag/corpus.py` 的 `SOURCES`（第四章 → `knowledge_base/调车工作/铁路行车组织第2版-调车工作.md`，
-   第十一章 → `knowledge_base/技术站列车编组计划的编制/铁路行车组织第2版-技术站列车编组计划的编制.md`），再完善 `/qa` 页面与降级提示。
+3. **RAG（已完成）**：`scripts/rag/` 已用全书 md 做「章节级 BM25 + bge-m3 向量 + LLM 严格依据片段」问答，
+   含 `/qa`、`/api/qa`、CLI、建索引与评测。后续可选：换更强 embedding、接入 API embedding 替代本地 ONNX、
+   表格/公式结构化检索。
 4. **第十一章《列车编组计划》**：知识库已迁至 `knowledge_base/技术站列车编组计划的编制/`；`/bianzu` 已覆盖
    例11.3/11.5/11.6 与习题1/2/3 的双算法完整过程。后续可补例11.4、其余习题、超过 5 个支点站的算例，
    以及更紧凑的表格排版（当前每个方案一张完整表，页面较长）。
